@@ -165,5 +165,69 @@ class GarimpoTests(unittest.TestCase):
         garimpo.run(["--store", str(self.store), "reset", pin["id"], "--confirmed-not-published"])
         self.assertEqual(garimpo.load_store(self.store)["pins"][pin["id"]]["status"], "prepared")
 
+
+    def test_ml_item_id_is_optional_and_validated(self):
+        validated = garimpo.validate_row(self.row, self.root)
+        self.assertEqual(validated["item_id"], "")
+        good = dict(self.row, item_id="MLB123456789")
+        self.assertEqual(garimpo.validate_row(good, self.root)["item_id"], "MLB123456789")
+        with self.assertRaises(garimpo.GarimpoError):
+            garimpo.validate_row(dict(self.row, item_id="../bad"), self.root)
+
+    def test_ml_verify_no_token_and_reject_inactive(self):
+        with patch.dict(os.environ, {"MERCADOLIVRE_ACCESS_TOKEN": ""}):
+            with self.assertRaisesRegex(garimpo.GarimpoError, "MERCADOLIVRE_ACCESS_TOKEN"):
+                garimpo.fetch_mercadolivre_item("MLB123456789")
+        from unittest.mock import MagicMock
+        import io
+        class FakeResponse:
+            def __enter__(self):
+                return io.BytesIO(json.dumps({"id":"MLB123456789","status":"active","title":"Item legítimo","price":120.5,"currency_id":"BRL"}).encode())
+            def __exit__(self, *args):
+                pass
+        with patch.object(garimpo, "urlopen", return_value=FakeResponse()) as caller:
+            item = garimpo.fetch_mercadolivre_item("MLB123456789", token="test-token")
+            self.assertEqual(item["price"], 120.5)
+            req = caller.call_args.args[0]
+            self.assertEqual(req.full_url, "https://api.mercadolibre.com/items/MLB123456789")
+            self.assertTrue(req.get_header("Authorization").startswith("Bearer "))
+        class FakeInactive(FakeResponse):
+            def __enter__(self):
+                return io.BytesIO(json.dumps({"id":"MLB123456789","status":"paused","title":"Anúncio pausado"}).encode())
+        with patch.object(garimpo, "urlopen", return_value=FakeInactive()):
+            with self.assertRaisesRegex(garimpo.GarimpoError,"não ativo"):
+                garimpo.fetch_mercadolivre_item("MLB123456789",token="test-token")
+
+    def test_verify_ml_cli_saves_snapshot_without_affiliate_changes(self):
+        garimpo.import_csv(self.csv, self.store)
+        evidence = {"item_id":"MLB123456789","title":"Título oficial","status":"active","price":56,"currency_id":"BRL","checked_at":"2026-10-19T00:00:00+00:00"}
+        with patch.object(garimpo, "fetch_mercadolivre_item", return_value=evidence) as fetcher:
+            garimpo.run(["--store",str(self.store),"verify-ml","test-product-1","--item-id","MLB123456789"])
+        self.assertEqual(fetcher.call_args.args[0],"MLB123456789")
+        pin=garimpo.load_store(self.store)["pins"]["test-product-1"]
+        self.assertEqual(pin["ml_verification"],evidence)
+        self.assertEqual(pin["affiliate_url"],"https://meli.la/17N84yk")
+
+    def test_exclusive_publish_lock_and_stale_crash_reconcile(self):
+        state,pin=self.staged_pin()
+        garimpo.approve_pin(pin,"123456789012345678")
+        garimpo.save_store(self.store,state)
+        with garimpo.exclusive_publish_lock(self.store):
+            with self.assertRaisesRegex(garimpo.GarimpoError,"Outra publicação"):
+                with garimpo.exclusive_publish_lock(self.store):
+                    pass
+        with patch.dict(os.environ,{"PINTEREST_ACCESS_TOKEN":"token-test"}),patch.object(garimpo,"pinterest_call",side_effect=RuntimeError("Unexpected failure")):
+            with self.assertRaisesRegex(RuntimeError,"Unexpected failure"):
+                garimpo.publish_one_approved(self.store,pin["id"])
+        self.assertEqual(garimpo.load_store(self.store)["pins"][pin["id"]]["status"],"needs_check")
+        self.assertFalse(Path(str(self.store.resolve())+".publish.lock").exists())
+
+    def test_reset_unfinished_publishing_state_with_confirmation(self):
+        state,pin=self.staged_pin()
+        pin["status"]="publishing"
+        garimpo.save_store(self.store,state)
+        garimpo.run(["--store",str(self.store),"reset",pin["id"],"--confirmed-not-published"])
+        self.assertEqual(garimpo.load_store(self.store)["pins"][pin["id"]]["status"],"prepared")
+
 if __name__ == "__main__":
     unittest.main()

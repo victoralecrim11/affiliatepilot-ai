@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import base64
 import csv
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -25,6 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_STORE = BASE_DIR / "data" / "pins.json"
 DEFAULT_OUT = BASE_DIR / "out"
 PINTEREST_API = "https://api.pinterest.com/v5"
+MERCADOLIVRE_ITEMS_API = "https://api.mercadolibre.com/items/"
 DISCLOSURE = "Este conteúdo contém link de afiliado. Posso receber comissão por compras elegíveis."
 CATEGORIES = {
     "casa": "CASA & DECORAÇÃO",
@@ -85,8 +87,13 @@ def validate_row(row: dict[str, str], csv_dir: Path) -> dict:
     desc = summary + "\n\n" + DISCLOSURE
     if len(desc) > 800:
         raise GarimpoError("Descrição final excedeu 800 caracteres")
+    item_id = (row.get("item_id") or "").strip().upper()
+    if item_id and not re.fullmatch(r"MLB[0-9]{6,18}", item_id):
+        raise GarimpoError("item_id inválido: use um ID de anúncio MLB numérico e real")
     return {
         "id": id_,
+        "item_id": item_id,
+        "ml_verification": None,
         "title": title,
         "description": desc,
         "category": cat,
@@ -150,6 +157,97 @@ def import_csv(csv_path: Path, store_path: Path) -> int:
     state["pins"].update(pending)
     save_store(store_path, state)
     return len(pending)
+
+
+def fetch_mercadolivre_item(item_id: str, *, token: str | None = None) -> dict:
+    """Confere os metadados de UM anúncio na API oficial; não cria links de afiliado.
+
+    Precisa de um token autorizado para os recursos do Mercado Livre.
+    Os dados são uma fotografia momentânea e não atestam elegibilidade a comissões.
+    """
+    if not re.fullmatch(r"MLB[0-9]{6,18}", item_id):
+        raise GarimpoError("item_id inválido. Exemplo de formato: MLB123456789")
+    token = token or os.environ.get("MERCADOLIVRE_ACCESS_TOKEN", "")
+    if not token:
+        raise GarimpoError("Configure MERCADOLIVRE_ACCESS_TOKEN autorizado; não é seu token Pinterest")
+    req = Request(MERCADOLIVRE_ITEMS_API + item_id, headers={
+        "Authorization": "Bearer " + token, "Accept": "application/json",
+        "User-Agent": "GarimpoDaVez/1.1 (authorized read-only item check)",
+    })
+    try:
+        with urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read(500_000).decode("utf-8"))
+    except HTTPError as exc:
+        raise GarimpoError(f"Mercado Livre HTTP {exc.code}; verifique token, escopos e ID do item") from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        raise GarimpoError(f"Conexão com Mercado Livre falhou: {type(exc).__name__}") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise GarimpoError("Mercado Livre retornou resposta inválida") from exc
+    if not isinstance(data, dict) or data.get("id") != item_id:
+        raise GarimpoError("A API não confirmou o ID do anúncio solicitado")
+    if data.get("status") != "active":
+        raise GarimpoError(f"Anúncio não ativo: {data.get('status', 'desconhecido')}")
+    title = data.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise GarimpoError("A API não retornou título verificável")
+    # Campos descritivos vêm da API; NÃO substituir o link rastreado oficial.
+    return {
+        "item_id": item_id,
+        "title": title.strip(),
+        "status": "active",
+        "price": data.get("price") if isinstance(data.get("price"), (int, float)) and not isinstance(data.get("price"), bool) else None,
+        "currency_id": data.get("currency_id") if isinstance(data.get("currency_id"), str) else None,
+        "checked_at": now_iso(),
+    }
+
+
+@contextmanager
+def exclusive_publish_lock(store: Path):
+    """Evita dois processos locais dispararem a mesma publicação simultaneamente.
+
+    Lock residual após uma queda deve ser removido MANUALMENTE após conciliar no Pinterest.
+    """
+    lock = Path(str(store.resolve()) + ".publish.lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise GarimpoError(f"Outra publicação pode estar em andamento: {lock}. Não apague sem conferir o Pinterest.") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fp:
+            fp.write(f"PID {os.getpid()} - {now_iso()}\\n")
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def publish_one_approved(store: Path, id_: str) -> None:
+    """Reserva, publica UMA vez e persiste estado para conciliação de falhas."""
+    if not os.environ.get("PINTEREST_ACCESS_TOKEN"):
+        raise GarimpoError("Falta PINTEREST_ACCESS_TOKEN (OAuth oficial Pinterest).")
+    with exclusive_publish_lock(store):
+        state = load_store(store)
+        pin = get_pin(state, id_)
+        if pin["status"] != "approved" or fingerprint(pin) != pin["approval_sha256"]:
+            raise GarimpoError("Aprovação ausente ou conteúdo modificado. Prepare e aprove novamente.")
+        pin["status"] = "publishing"
+        save_store(store, state)
+        try:
+            approved_snapshot = dict(pin)
+            approved_snapshot["status"] = "approved"
+            result = publish_pin(approved_snapshot)
+            if not result.get("id"):
+                raise GarimpoError("Resposta sem ID; confira manualmente no Pinterest antes de nova tentativa")
+            pin["status"] = "published"
+            pin["pin_id"] = str(result["id"])
+            pin["published_at"] = now_iso()
+        except Exception:
+            # O sucesso remoto pode ter ocorrido antes da falha local.
+            pin["status"] = "needs_check"
+            save_store(store, state)
+            raise
+        save_store(store, state)
+        print(f"Pin publicado: https://www.pinterest.com/pin/{pin['pin_id']}/")
 
 
 def get_pin(state: dict, id_: str) -> dict:
@@ -327,6 +425,9 @@ def build_parser() -> argparse.ArgumentParser:
     pub = sub.add_parser("publish", help="Publica UM Pin aprovado via Pinterest API oficial")
     pub.add_argument("id")
     pub.add_argument("--confirm", action="store_true", required=True)
+    verify = sub.add_parser("verify-ml", help="Consulta um anúncio via API oficial ML (somente leitura)")
+    verify.add_argument("id", help="ID local do Pin importado")
+    verify.add_argument("--item-id", help="ID MLB real do anúncio (se não informado no CSV)")
     reset = sub.add_parser("reset", help="Libera novo preparo depois de conciliar uma publicação incerta")
     reset.add_argument("id")
     reset.add_argument("--confirmed-not-published", action="store_true", required=True)
@@ -347,6 +448,11 @@ def run(argv: list[str] | None = None) -> int:
         if resp.get("bookmark"):
             print("Há mais pastas. Este comando mostra somente a primeira página da API.")
         return 0
+    if args.command == "publish":
+        if not args.confirm:
+            raise GarimpoError("Publicação exige --confirm")
+        publish_one_approved(args.store, args.id)
+        return 0
     state = load_store(args.store)
     if args.command == "list":
         for id_, pin in sorted(state["pins"].items()):
@@ -354,7 +460,18 @@ def run(argv: list[str] | None = None) -> int:
                 print(f"{id_:<20} {pin['status']:<13} {pin['title']}")
         return 0
     pin = get_pin(state, args.id)
-    if args.command == "prepare":
+    if args.command == "verify-ml":
+        if pin["status"] not in {"draft", "prepared"}:
+            raise GarimpoError("Verifique o anúncio antes da aprovação/publicação")
+        item_id = (args.item_id or pin.get("item_id") or "").strip().upper()
+        verification = fetch_mercadolivre_item(item_id)
+        pin["item_id"] = item_id
+        pin["ml_verification"] = verification
+        print(f"Anúncio conferido: {item_id} | {verification['title']}")
+        if verification["price"] is not None:
+            print(f"Preço no momento da consulta: {verification['currency_id']} {verification['price']}")
+        print("Consulte elegibilidade a comissão e mantenha o link oficial de afiliado do CSV.")
+    elif args.command == "prepare":
         if pin["status"] not in {"draft", "prepared"}:
             raise GarimpoError("Pin já aprovado/enviado. Não é permitido alterar criativo aprovado.")
         path = prepare_image(pin, args.out.resolve())
@@ -367,32 +484,9 @@ def run(argv: list[str] | None = None) -> int:
             raise GarimpoError("É necessário --confirm após revisar o criativo")
         approve_pin(pin, args.board_id)
         print(f"Aprovado: {args.id} na pasta {args.board_id}. Ainda NÃO publicado.")
-    elif args.command == "publish":
-        if not args.confirm:
-            raise GarimpoError("Publique somente após passar --confirm")
-        if pin["status"] != "approved" or fingerprint(pin) != pin["approval_sha256"]:
-            raise GarimpoError("Aprovação inválida; prepare/revise e aprove novamente")
-        if not os.environ.get("PINTEREST_ACCESS_TOKEN"):
-            raise GarimpoError("Falta PINTEREST_ACCESS_TOKEN (não foi enviado nada).")
-        # Persist pre-request state; never automatically retry an uncertain network failure.
-        pin["status"] = "publishing"
-        save_store(args.store, state)
-        try:
-            pin["status"] = "approved"  # publish_pin requires approved; not yet persisted.
-            result = publish_pin(pin)
-            if not result.get("id"):
-                raise GarimpoError("API não retornou ID do Pin; confira manualmente antes de tentar novamente")
-        except GarimpoError:
-            pin["status"] = "needs_check"
-            save_store(args.store, state)
-            raise
-        pin["status"] = "published"
-        pin["pin_id"] = str(result["id"])
-        pin["published_at"] = now_iso()
-        print(f"Pin publicado com sucesso: https://www.pinterest.com/pin/{pin['pin_id']}/")
     elif args.command == "reset":
-        if not args.confirmed_not_published or pin["status"] != "needs_check":
-            raise GarimpoError("Reset exige status needs_check e --confirmed-not-published")
+        if not args.confirmed_not_published or pin["status"] not in {"needs_check", "publishing"}:
+            raise GarimpoError("Reset exige needs_check/publishing e --confirmed-not-published; remova lock residual apenas após conciliar")
         pin["status"] = "prepared"
         pin["approval_sha256"] = ""
         pin["board_id"] = ""
