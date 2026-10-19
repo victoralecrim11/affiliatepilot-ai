@@ -4,7 +4,7 @@ Landing page estática de curadoria de conteúdos e recomendações de produtos,
 
 ## Site público e estrutura
 
-- Site atual: https://victoralecrim11.github.io/affiliatepilot-ai/
+- Site atual: https://victoralecrim11.github.io/garimpo-da-vez/
 - `index.html`: apresentação, categorias, curadoria e transparência.
 - `privacy/index.html`: privacidade aplicável à página estática atual.
 - `assets/styles.css`: identidade visual e responsividade.
@@ -16,13 +16,13 @@ Não há checkout, API, n8n, autenticação, catálogo automatizado, pixel próp
 
 Nome de exibição: **Garimpo da Vez | Achadinhos**. Nome de usuário confirmado pelo responsável: **`@garimpodavez_`**.
 
-**Importante:** o link para Pinterest em `index.html` aponta temporariamente para a conta atual conhecida `https://www.pinterest.com/garimpodavez_/`. Assim que a alteração de arroba estiver concluída, confirme a URL pública real e atualize o endereço. Não assuma que arrobas sugeridos existem.
+Link oficial informado pelo responsável e configurado em `index.html`: https://www.pinterest.com/garimpodavez_/. Se o perfil mudar de arroba, atualizar também o link do botão no site.
 
 ## Publicação no GitHub Pages
 
-Configuração existente: repositório `victoralecrim11/affiliatepilot-ai`, branch `main`, pasta `/(root)` (confirmar em Settings → Pages). Os caminhos HTML/CSS são relativos e funcionam neste subdiretório.
+Repositório atual: `victoralecrim11/garimpo-da-vez`, branch `main`. Conferir em Settings → Pages se a fonte de publicação utiliza a branch `main` e a pasta `/(root)`. Os caminhos HTML/CSS são relativos e funcionam neste subdiretório.
 
-**Migração autorizada pelo responsável:** renomear o repositório para `garimpo-da-vez` em Settings → General → Repository name. Depois confirmar o Pages em Settings → Pages, validar `https://victoralecrim11.github.io/garimpo-da-vez/` e `.../privacy/`, e atualizar `og:url` e o link Website/About do GitHub. O redirecionamento do GitHub para o repositório antigo não garante redirecionamento da URL antiga do GitHub Pages. Se for necessário preservar acessos antigos, criar um repositório separado `affiliatepilot-ai` com redirect HTML para o novo endereço após a migração. Atualizar as URLs cadastradas no Pinterest e no programa de afiliados.
+**Migração de nome concluída:** o repositório foi renomeado para `garimpo-da-vez` e a URL canônica (`og:url`) aponta para o novo endereço. Confirmar o conteúdo efetivamente publicado em `https://victoralecrim11.github.io/garimpo-da-vez/` e `https://victoralecrim11.github.io/garimpo-da-vez/privacy/` após o deploy. O antigo endereço `https://victoralecrim11.github.io/affiliatepilot-ai/` não possui redirecionamento garantido e foi observado retornando 404 após a renomeação. Se for necessário preservar acessos antigos, um repositório separado com o nome `affiliatepilot-ai` pode hospedar um redirecionamento HTML para o novo endereço. Atualizar as URLs cadastradas no Pinterest e no programa de afiliados.
 
 ## Conteúdo comercial e conformidade
 
