@@ -1,0 +1,10 @@
+# Local-only affiliate drafts, images, credentials and queue
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+automation/data/
+automation/out/
+automation/.venv/
