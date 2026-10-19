@@ -14,15 +14,15 @@ Não há checkout, API, n8n, autenticação, catálogo automatizado, pixel próp
 
 ## Atualizar a identidade nas redes
 
-Nome de exibição sugerido: **Garimpo da Vez | Achadinhos**. O arroba `@garimpodavezbr` é uma sugestão **não confirmada como disponível**.
+Nome de exibição: **Garimpo da Vez | Achadinhos**. Nome de usuário confirmado pelo responsável: **`@garimpodavez_`**.
 
-**Importante:** o link para Pinterest em `index.html` aponta temporariamente para a conta atual conhecida `https://www.pinterest.com/affiliatepilotai/`. Assim que a alteração de arroba estiver concluída, confirme a URL pública real e atualize o endereço. Não assuma que arrobas sugeridos existem.
+**Importante:** o link para Pinterest em `index.html` aponta temporariamente para a conta atual conhecida `https://www.pinterest.com/garimpodavez_/`. Assim que a alteração de arroba estiver concluída, confirme a URL pública real e atualize o endereço. Não assuma que arrobas sugeridos existem.
 
 ## Publicação no GitHub Pages
 
 Configuração existente: repositório `victoralecrim11/affiliatepilot-ai`, branch `main`, pasta `/(root)` (confirmar em Settings → Pages). Os caminhos HTML/CSS são relativos e funcionam neste subdiretório.
 
-**Não renomear o repositório diretamente sem planejar redirecionamento.** Uma renomeação muda o endereço GitHub Pages; pode quebrar a URL colocada na bio do Pinterest, cadastros de afiliado e eventual verificação de domínio. Primeiro publicar e validar a nova identidade no endereço atual; depois planejar migração para URL com nova marca e atualizar links externos. O meta `og:url` acompanha a URL atual.
+**Migração autorizada pelo responsável:** renomear o repositório para `garimpo-da-vez` em Settings → General → Repository name. Depois confirmar o Pages em Settings → Pages, validar `https://victoralecrim11.github.io/garimpo-da-vez/` e `.../privacy/`, e atualizar `og:url` e o link Website/About do GitHub. O redirecionamento do GitHub para o repositório antigo não garante redirecionamento da URL antiga do GitHub Pages. Se for necessário preservar acessos antigos, criar um repositório separado `affiliatepilot-ai` com redirect HTML para o novo endereço após a migração. Atualizar as URLs cadastradas no Pinterest e no programa de afiliados.
 
 ## Conteúdo comercial e conformidade
 
