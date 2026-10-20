@@ -104,3 +104,39 @@ py -3 -m unittest discover -s automation/tests -v
 ```
 
 Referências oficiais: [Pinterest Developer Guidelines](https://policy.pinterest.com/en/developer-guidelines), [Criar boards/Pins via API](https://developer.pinterest.com/docs/work-with-organic-content-and-users/create-boards-and-pins/), [Pinterest OAuth](https://developer.pinterest.com/docs/getting-started/set-up-authentication-and-authorization/), [Mercado Livre Afiliados](https://www.mercadolivre.com.br/l/comece-a-recomendar).
+
+## OAuth automático Mercado Livre (Authorization Code + PKCE)
+
+O script utiliza OAuth 2.0 e PKCE S256. O Client Secret, Access Token e Refresh Token ficam **somente no cofre seguro do sistema operacional** (Windows Credential Manager, macOS Keychain ou SecretService/KWallet no Linux). Nunca gravamos tokens em JSON, .env, GitHub ou GitHub Actions.
+
+**Cadastre EXATAMENTE esta URI de redirecionamento na aplicação do Mercado Livre:**
+
+    https://victoralecrim11.github.io/garimpo-da-vez/oauth/callback/
+
+A página HTTPS do GitHub Pages é uma ponte estática: encaminha apenas o código temporário de autorização e o state para o servidor local Python em http://127.0.0.1:8765/callback. O código de autorização transita pelo host GitHub Pages, mas só pode ser resgatado com PKCE e Client Secret locais. Essa é uma solução para **uso pessoal com uma conta**, não para aplicações multiusuário. Para vários usuários, prefira backend HTTPS dedicado e cofre central com controle de acesso.
+
+### Primeiro login (Windows PowerShell)
+
+```powershell
+git pull
+py -3 -m pip install -r automation/requirements.txt
+$env:MERCADOLIVRE_CLIENT_ID = 'SEU_APP_ID'
+py -3 automation/ml_oauth.py login
+```
+
+O terminal pede o Client Secret sem mostrar caracteres. Nunca compartilhe o secret, tokens ou a URL de retorno contendo code. Deixe o comando aberto: o script inicia um servidor apenas em 127.0.0.1:8765 e abre a autorização do Mercado Livre no navegador. Ao aceitar, a página de callback encaminha o retorno à porta local. Se o navegador não abrir, use a opção --no-browser. Não use GitHub Pages para processar tokens nem coloque credentials na página estática.
+
+### Consultar, renovar e sair
+
+```powershell
+py -3 automation/ml_oauth.py status
+py -3 automation/garimpo.py verify-ml ID_DO_PIN --item-id MLB123456789
+py -3 automation/ml_oauth.py refresh
+py -3 automation/ml_oauth.py logout
+```
+
+O ID MLB acima é apenas exemplo de formato. A consulta verifica metadados permitidos de um item; ela não gera nem valida comissões de afiliado.
+
+Na consulta, o script usa o token do cofre caso MERCADOLIVRE_ACCESS_TOKEN não esteja definido. Quando próximo do vencimento, renova automaticamente e substitui imediatamente o Refresh Token antigo por um novo, sob lock de processo. O Refresh Token do Mercado Livre é de **uso único**: não compartilhe o cofre entre várias máquinas e não remova um lock de autenticação residual sem confirmar que nenhum processo está rodando. Em falha incerta ou revogação, pode ser necessário repetir login.
+
+Documentação oficial: https://developers.mercadolivre.com.br/autenticacao-e-autorizacao

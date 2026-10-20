@@ -167,9 +167,17 @@ def fetch_mercadolivre_item(item_id: str, *, token: str | None = None) -> dict:
     """
     if not re.fullmatch(r"MLB[0-9]{6,18}", item_id):
         raise GarimpoError("item_id inválido. Exemplo de formato: MLB123456789")
-    token = token or os.environ.get("MERCADOLIVRE_ACCESS_TOKEN", "")
-    if not token:
-        raise GarimpoError("Configure MERCADOLIVRE_ACCESS_TOKEN autorizado; não é seu token Pinterest")
+    if token is None:
+        token = os.environ.get("MERCADOLIVRE_ACCESS_TOKEN", "")
+        if not token:
+            try:
+                from ml_oauth import get_access_token, OAuthError
+            except ModuleNotFoundError:
+                from automation.ml_oauth import get_access_token, OAuthError
+            try:
+                token = get_access_token()
+            except OAuthError as exc:
+                raise GarimpoError("MERCADOLIVRE_ACCESS_TOKEN ausente e OAuth indisponível: " + str(exc)) from exc
     req = Request(MERCADOLIVRE_ITEMS_API + item_id, headers={
         "Authorization": "Bearer " + token, "Accept": "application/json",
         "User-Agent": "GarimpoDaVez/1.1 (authorized read-only item check)",

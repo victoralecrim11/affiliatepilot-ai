@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Conectando Mercado Livre | Garimpo da Vez</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;background:#f5efe3;color:#244e46;margin:0;display:grid;place-items:center;min-height:100vh}
+main{max-width:560px;background:white;padding:32px;border-radius:18px;margin:20px;box-shadow:0 8px 30px #244e4616}
+h1{font-size:1.5rem;margin:0 0 12px}p{margin-bottom:0}
+</style>
+</head>
+<body><main><h1>Garimpo da Vez</h1><p id="message">Conectando ao aplicativo Python no seu computador…</p></main>
+<script>
+(() => {
+  "use strict";
+  const output = document.getElementById("message");
+  // Esta página é apenas uma ponte: não solicita, guarda ou mostra tokens.
+  // Nem client_secret nem access_token devem jamais ser adicionados aqui.
+  const query = new URLSearchParams(window.location.search);
+  const code = query.getAll("code");
+  const state = query.getAll("state");
+  const errors = query.getAll("error");
+  const valid = state.length === 1 && state[0].length >= 16 && state[0].length <= 256
+      && ((code.length === 1 && code[0].length > 0 && code[0].length <= 2048)
+          || (errors.length === 1 && errors[0].length <= 100));
+  if (!valid) {
+    output.textContent = "Não foi possível validar o retorno. Inicie novamente o login pelo terminal.";
+    history.replaceState(null, "", location.pathname);
+    return;
+  }
+  const target = new URL("http://127.0.0.1:8765/callback");
+  target.searchParams.set("state", state[0]);
+  if (code.length === 1) target.searchParams.set("code", code[0]);
+  else target.searchParams.set("error", errors[0]);
+  history.replaceState(null, "", location.pathname);
+  window.location.replace(target.toString());
+})();
+</script>
+</body></html>
