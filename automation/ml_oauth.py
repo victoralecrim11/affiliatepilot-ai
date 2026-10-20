@@ -45,7 +45,7 @@ def keyring_client():
     try:
         import keyring
         backend = keyring.get_keyring()
-    except (ImportError, Exception) as exc:
+    except Exception as exc:
         raise OAuthError("Instale keyring e configure o cofre do sistema operacional.") from exc
     module = type(backend).__module__.lower()
     # Fail closed: nunca aceitar cofre de texto puro ou backend alternativo desconhecido.
@@ -164,9 +164,9 @@ def parse_oauth_callback(path: str, state: str) -> str:
     return query["code"][0]
 
 
-def wait_for_local_callback(state: str, timeout: int = TIMEOUT_SECONDS) -> str:
+def wait_for_local_callback(state: str, timeout: int = TIMEOUT_SECONDS, on_ready=None) -> str:
     class LocalServer(HTTPServer):
-        allow_reuse_address = False
+        allow_reuse_address = True
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, _format, *args):
@@ -204,6 +204,8 @@ def wait_for_local_callback(state: str, timeout: int = TIMEOUT_SECONDS) -> str:
         raise OAuthError(f"Porta local {CALLBACK_PORT} indisponível. Encerre outro processo que a utiliza.") from exc
     with server:
         server.timeout = 1
+        if on_ready is not None:
+            on_ready()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             server.handle_request()
@@ -276,9 +278,7 @@ def login(*, no_browser: bool = False, timeout: int = TIMEOUT_SECONDS) -> None:
     print("Abra esta URL para autorizar o aplicativo na conta principal do Mercado Livre:")
     print(url)
     print(f"Aguardando callback no computador (127.0.0.1:{CALLBACK_PORT}), por até {timeout}s.")
-    if not no_browser:
-        webbrowser.open(url)
-    code = wait_for_local_callback(state, timeout)
+    code = wait_for_local_callback(state, timeout, on_ready=(lambda: webbrowser.open(url)) if not no_browser else None)
     result = exchange_token({
         "grant_type": "authorization_code", "client_id": client_id,
         "client_secret": client_secret, "code": code,
