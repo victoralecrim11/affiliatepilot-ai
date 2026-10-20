@@ -28,6 +28,7 @@ import webbrowser
 
 AUTH_URL = "https://auth.mercadolivre.com.br/authorization"
 TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
+DEVELOPER_APPS_URL = "https://developers.mercadolivre.com.br/devcenter"
 REDIRECT_URI = "https://victoralecrim11.github.io/garimpo-da-vez/oauth/callback/"
 SERVICE = "garimpo-da-vez-mercadolivre-oauth"
 ACCOUNT = "default"
@@ -263,17 +264,36 @@ def get_access_token() -> str:
     return refresh_access_token()
 
 
+def prompt_client_secret(*, no_browser: bool = False) -> str:
+    """Abre o DevCenter antes de solicitar o secret, sem tentar lê-lo por API.
+
+    Mesmo sem navegador, exibe a URL para acesso manual. Nenhuma chave é
+    registrada em logs, parâmetros de URL ou no próprio repositório.
+    """
+    print("Abra o Mercado Livre Developers e acesse Minhas aplicações → Editar → Chave secreta:")
+    print(DEVELOPER_APPS_URL)
+    if not no_browser:
+        try:
+            opened = webbrowser.open(DEVELOPER_APPS_URL, new=2)
+        except Exception:
+            opened = False
+        if not opened:
+            print("Não foi possível abrir o navegador automaticamente. Use o link acima.")
+    print("Copie somente o Client Secret e cole no terminal. Ele ficará oculto.")
+    return getpass.getpass("Client Secret (não será exibido): ").strip()
+
+
 def login(*, no_browser: bool = False, timeout: int = TIMEOUT_SECONDS) -> None:
     client_id = os.environ.get("MERCADOLIVRE_CLIENT_ID", "").strip()
     if not re.fullmatch(r"[0-9]{5,30}", client_id):
         raise OAuthError("Defina MERCADOLIVRE_CLIENT_ID com o App ID do Mercado Livre.")
+    # Falhe antes de solicitar o segredo se o cofre seguro estiver indisponível.
+    keyring_client()
     client_secret = os.environ.get("MERCADOLIVRE_CLIENT_SECRET", "").strip()
     if not client_secret:
-        client_secret = getpass.getpass("Client Secret (não será exibido): ").strip()
+        client_secret = prompt_client_secret(no_browser=no_browser)
     if not client_secret:
         raise OAuthError("Client Secret não informado.")
-    # Verifica o cofre ANTES de solicitar autorização; nunca abrir navegador sem persistência.
-    keyring_client()
     verifier, challenge = create_pkce()
     state = secrets.token_urlsafe(32)
     url = authorization_url(client_id, challenge, state)

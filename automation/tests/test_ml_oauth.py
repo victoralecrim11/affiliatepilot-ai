@@ -173,5 +173,77 @@ class OAuthTests(unittest.TestCase):
         self.assertNotIn("MERCADOLIVRE_CLIENT_SECRET", html)
         self.assertNotIn("Bearer ", html)
 
+
+    def test_login_opens_devcenter_before_requesting_secret_then_oauth(self):
+        events = []
+
+        def fake_browser(url, **_kwargs):
+            events.append(("browser", url))
+            return True
+
+        def fake_prompt(message):
+            events.append(("secret_prompt", message))
+            return "SECRET_FROM_DEV_CENTER"
+
+        def fake_wait(state, timeout, on_ready):
+            events.append(("wait", state))
+            on_ready()
+            return "CODE_FOR_TEST"
+
+        def fake_exchange(payload):
+            events.append(("exchange", payload["client_secret"]))
+            self.assertEqual(payload["code"], "CODE_FOR_TEST")
+            return {"access_token": "TEST_TOKEN", "refresh_token": "TEST_REFRESH",
+                    "expires_at": int(time.time()) + 3600}
+
+        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID": "1234567890123456",
+                                    "MERCADOLIVRE_CLIENT_SECRET": ""}), \
+             patch.object(oauth.webbrowser, "open", side_effect=fake_browser), \
+             patch.object(oauth.getpass, "getpass", side_effect=fake_prompt), \
+             patch.object(oauth, "wait_for_local_callback", side_effect=fake_wait), \
+             patch.object(oauth, "exchange_token", side_effect=fake_exchange):
+            oauth.login()
+
+        self.assertEqual(events[0], ("browser", oauth.DEVELOPER_APPS_URL))
+        self.assertEqual(events[1][0], "secret_prompt")
+        self.assertEqual(events[2][0], "wait")
+        self.assertEqual(events[3][0], "browser")
+        self.assertTrue(events[3][1].startswith(oauth.AUTH_URL + "?"))
+        self.assertEqual(events[4], ("exchange", "SECRET_FROM_DEV_CENTER"))
+        self.assertEqual(oauth.read_credentials()["client_secret"], "SECRET_FROM_DEV_CENTER")
+
+    def test_login_no_browser_never_launches_devcenter_or_oauth(self):
+        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID": "1234567890123456",
+                                    "MERCADOLIVRE_CLIENT_SECRET": ""}), \
+             patch.object(oauth.webbrowser, "open") as opened, \
+             patch.object(oauth.getpass, "getpass", return_value="SECRET"), \
+             patch.object(oauth, "wait_for_local_callback", return_value="CODE"), \
+             patch.object(oauth, "exchange_token", return_value={
+                 "access_token":"AT","refresh_token":"RT",
+                 "expires_at":int(time.time())+3600
+             }):
+            oauth.login(no_browser=True)
+        opened.assert_not_called()
+
+    def test_devcenter_browser_failure_keeps_manual_fallback(self):
+        with patch.object(oauth.webbrowser, "open", return_value=False), \
+             patch.object(oauth.getpass, "getpass", return_value="SECRET") as prompted, \
+             patch("builtins.print") as printed:
+            self.assertEqual(oauth.prompt_client_secret(), "SECRET")
+        prompted.assert_called_once()
+        self.assertTrue(any(oauth.DEVELOPER_APPS_URL in str(call) for call in printed.call_args_list))
+
+    def test_login_env_secret_skips_devcenter_prompt(self):
+        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID": "1234567890123456",
+                                    "MERCADOLIVRE_CLIENT_SECRET": "ENV_SECRET"}), \
+             patch.object(oauth, "prompt_client_secret") as prompt, \
+             patch.object(oauth, "wait_for_local_callback", return_value="CODE"), \
+             patch.object(oauth, "exchange_token", return_value={
+                 "access_token":"AT","refresh_token":"RT",
+                 "expires_at":int(time.time())+3600
+             }):
+            oauth.login(no_browser=True)
+        prompt.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
