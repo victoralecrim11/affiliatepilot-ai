@@ -156,6 +156,8 @@ def parse_oauth_callback(path: str, state: str) -> str:
     if len(query.get("state", [])) != 1 or not hmac.compare_digest(query["state"][0], state):
         raise OAuthError("State ausente ou incorreto; autorização recusada.")
     if "error" in query:
+        if "code" in query or len(query["error"]) != 1:
+            raise OAuthError("Callback conflitante: contém código e erro.")
         raise OAuthError("Autorização negada/cancelada pelo Mercado Livre.")
     if len(query.get("code", [])) != 1 or not query["code"][0]:
         raise OAuthError("Código de autorização ausente.")

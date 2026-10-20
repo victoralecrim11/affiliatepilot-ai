@@ -68,6 +68,7 @@ class OAuthTests(unittest.TestCase):
             "/callback?state=correct&state=correct&code=a",
             "/different?state=correct&code=abc",
             "/callback?state=correct&error=access_denied",
+            "/callback?state=correct&code=abc&error=access_denied",
         ):
             with self.subTest(path=bad), self.assertRaises(oauth.OAuthError):
                 oauth.parse_oauth_callback(bad, "correct")
@@ -131,6 +132,45 @@ class OAuthTests(unittest.TestCase):
             with self.assertRaises(oauth.OAuthError):
                 oauth.refresh_access_token()
         self.assertEqual(oauth.read_credentials()["refresh_token"],"OLD_REFRESH")
+
+
+    def test_login_end_to_end_mock_state_pkce_and_keyring(self):
+        """Simula login completo sem chamar endpoints externos nem abrir navegador."""
+        observed = {}
+        def fake_wait(state, timeout, on_ready):
+            self.assertGreaterEqual(len(state), 32)
+            self.assertIsNotNone(on_ready)
+            observed["state"] = state
+            return "TEST_CODE"
+        def fake_exchange(payload):
+            self.assertEqual(payload["grant_type"], "authorization_code")
+            self.assertEqual(payload["code"], "TEST_CODE")
+            self.assertEqual(payload["redirect_uri"], oauth.REDIRECT_URI)
+            self.assertGreaterEqual(len(payload["code_verifier"]), 43)
+            observed["verifier"] = payload["code_verifier"]
+            return {"access_token":"TEST_ACCESS","refresh_token":"TEST_REFRESH",
+                    "expires_at":int(time.time())+21600}
+        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID":"4095365184773888",
+                                    "MERCADOLIVRE_CLIENT_SECRET":"TEST_SECRET"}), \
+             patch.object(oauth, "wait_for_local_callback", side_effect=fake_wait), \
+             patch.object(oauth, "exchange_token", side_effect=fake_exchange), \
+             patch.object(oauth.webbrowser, "open") as opened:
+            oauth.login()
+        # A senha não aparece no navegador e o cofre recebe o bundle completo.
+        saved = oauth.read_credentials()
+        self.assertEqual(saved["client_id"], "4095365184773888")
+        self.assertEqual(saved["access_token"], "TEST_ACCESS")
+        self.assertEqual(saved["refresh_token"], "TEST_REFRESH")
+        self.assertEqual(saved["client_secret"], "TEST_SECRET")
+        url = oauth.authorization_url(saved["client_id"], "test", observed["state"])
+        self.assertEqual(parse_qs(urlsplit(url).query)["state"], [observed["state"]])
+
+    def test_static_bridge_points_only_to_local_oauth_receiver(self):
+        html = (PATH.parents[1] / "oauth" / "callback" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('new URL("http://127.0.0.1:8765/callback")', html)
+        self.assertIn("history.replaceState(null", html)
+        self.assertIn("validCode !== validError", html)
+        self.assertNotIn("client_secret", html.lower().split("<script>")[1].split("</script>")[0].split("const query")[0])
 
 if __name__ == "__main__":
     unittest.main()
