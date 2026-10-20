@@ -131,7 +131,7 @@ $env:MERCADOLIVRE_CLIENT_ID = 'SEU_APP_ID'
 py -3 automation/ml_oauth.py login
 ```
 
-O terminal pede o Client Secret sem mostrar caracteres. Nunca compartilhe o secret, tokens ou a URL de retorno contendo code. Deixe o comando aberto: o script inicia um servidor apenas em 127.0.0.1:8765 e abre a autorização do Mercado Livre no navegador. Ao aceitar, a página de callback encaminha o retorno à porta local. Se o navegador não abrir, use a opção --no-browser. Não use GitHub Pages para processar tokens nem coloque credentials na página estática.
+Quando não houver `MERCADOLIVRE_CLIENT_SECRET` na sessão do terminal, o script **abre automaticamente o DevCenter** (`https://developers.mercadolivre.com.br/devcenter`) **antes de solicitar** a chave. Entre em *Minhas aplicações → Garimpo da Vez → Editar → Chave secreta*, copie e cole a chave no prompt oculto (nenhum caractere aparece ao colar). O script não consegue ler o Client Secret por API. Depois, abre uma **segunda página** de autorização OAuth para sua conta Mercado Livre. Deixe o terminal aberto: ele escuta apenas `127.0.0.1:8765` e recebe o retorno pelo callback HTTPS. Se o navegador não abrir, os links são exibidos para abertura manual. `--no-browser` **não abre nenhuma das duas páginas**; você deverá abri-las manualmente. Se a variável `MERCADOLIVRE_CLIENT_SECRET` já estiver definida, o DevCenter não será aberto e o fluxo seguirá diretamente à autorização. Nunca compartilhe o secret, tokens ou a URL de retorno contendo `code`. Não use GitHub Pages para processar tokens nem coloque credenciais na página estática.
 
 ### Consultar, renovar e sair
 
