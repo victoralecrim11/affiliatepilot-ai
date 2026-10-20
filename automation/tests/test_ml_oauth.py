@@ -166,7 +166,7 @@ class OAuthTests(unittest.TestCase):
         self.assertEqual(parse_qs(urlsplit(url).query)["state"], [observed["state"]])
 
     def test_static_bridge_points_only_to_local_oauth_receiver(self):
-        html = (PATH.parents[2] / "oauth" / "callback" / "index.html").read_text(encoding="utf-8")
+        html = (PATH.parents[1] / "oauth" / "callback" / "index.html").read_text(encoding="utf-8")
         self.assertIn('new URL("http://127.0.0.1:8765/callback")', html)
         self.assertIn("history.replaceState(null", html)
         self.assertIn("validCode !== validError", html)
