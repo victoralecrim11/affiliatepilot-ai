@@ -51,7 +51,7 @@ class OAuthTests(unittest.TestCase):
         self.assertEqual(len(chall1), 43)
 
     def test_authorization_url_redirect_state_challenge(self):
-        url = oauth.authorization_url("4095365184773888", "challenge", "secure-state")
+        url = oauth.authorization_url("1234567890123456", "challenge", "secure-state")
         self.assertTrue(url.startswith("https://auth.mercadolivre.com.br/authorization?"))
         query = parse_qs(urlsplit(url).query)
         self.assertEqual(query["response_type"], ["code"])
@@ -150,7 +150,7 @@ class OAuthTests(unittest.TestCase):
             observed["verifier"] = payload["code_verifier"]
             return {"access_token":"TEST_ACCESS","refresh_token":"TEST_REFRESH",
                     "expires_at":int(time.time())+21600}
-        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID":"4095365184773888",
+        with patch.dict(os.environ, {"MERCADOLIVRE_CLIENT_ID":"1234567890123456",
                                     "MERCADOLIVRE_CLIENT_SECRET":"TEST_SECRET"}), \
              patch.object(oauth, "wait_for_local_callback", side_effect=fake_wait), \
              patch.object(oauth, "exchange_token", side_effect=fake_exchange), \
@@ -158,7 +158,7 @@ class OAuthTests(unittest.TestCase):
             oauth.login()
         # A senha não aparece no navegador e o cofre recebe o bundle completo.
         saved = oauth.read_credentials()
-        self.assertEqual(saved["client_id"], "4095365184773888")
+        self.assertEqual(saved["client_id"], "1234567890123456")
         self.assertEqual(saved["access_token"], "TEST_ACCESS")
         self.assertEqual(saved["refresh_token"], "TEST_REFRESH")
         self.assertEqual(saved["client_secret"], "TEST_SECRET")
@@ -166,11 +166,12 @@ class OAuthTests(unittest.TestCase):
         self.assertEqual(parse_qs(urlsplit(url).query)["state"], [observed["state"]])
 
     def test_static_bridge_points_only_to_local_oauth_receiver(self):
-        html = (PATH.parents[1] / "oauth" / "callback" / "index.html").read_text(encoding="utf-8")
+        html = (PATH.parents[2] / "oauth" / "callback" / "index.html").read_text(encoding="utf-8")
         self.assertIn('new URL("http://127.0.0.1:8765/callback")', html)
         self.assertIn("history.replaceState(null", html)
         self.assertIn("validCode !== validError", html)
-        self.assertNotIn("client_secret", html.lower().split("<script>")[1].split("</script>")[0].split("const query")[0])
+        self.assertNotIn("MERCADOLIVRE_CLIENT_SECRET", html)
+        self.assertNotIn("Bearer ", html)
 
 if __name__ == "__main__":
     unittest.main()
