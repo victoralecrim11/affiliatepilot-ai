@@ -109,9 +109,16 @@ Referências oficiais: [Pinterest Developer Guidelines](https://policy.pinterest
 
 O script utiliza OAuth 2.0 e PKCE S256. O Client Secret, Access Token e Refresh Token ficam **somente no cofre seguro do sistema operacional** (Windows Credential Manager, macOS Keychain ou SecretService/KWallet no Linux). Nunca gravamos tokens em JSON, .env, GitHub ou GitHub Actions.
 
-**Cadastre EXATAMENTE esta URI de redirecionamento na aplicação do Mercado Livre:**
+**AÇÃO OBRIGATÓRIA NO DEV CENTER ANTES DO LOGIN:** a URI usada inicialmente na criação da aplicação
+(`https://victoralecrim11.github.io/garimpo-da-vez/`) é apenas a página inicial e **não** recebe o código OAuth.
+Em *Minhas aplicações → Garimpo da Vez → Configuração e escopos → URIs de redirect*,
+substitua/adicone a URI de callback abaixo, clique em **Adicionar URI de redirect** quando necessário
+e salve a alteração. O endereço deve ser cadastrado *exatamente*, inclusive a barra final:
 
     https://victoralecrim11.github.io/garimpo-da-vez/oauth/callback/
+
+Depois de salvar, confirme se a página do callback está publicada no GitHub Pages antes de iniciar o login.
+**Não coloque Client Secret, código de autorização, access_token ou refresh_token na página.**
 
 A página HTTPS do GitHub Pages é uma ponte estática: encaminha apenas o código temporário de autorização e o state para o servidor local Python em http://127.0.0.1:8765/callback. O código de autorização transita pelo host GitHub Pages, mas só pode ser resgatado com PKCE e Client Secret locais. Essa é uma solução para **uso pessoal com uma conta**, não para aplicações multiusuário. Para vários usuários, prefira backend HTTPS dedicado e cofre central com controle de acesso.
 
