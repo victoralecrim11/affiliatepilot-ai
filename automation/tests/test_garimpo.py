@@ -61,6 +61,13 @@ class GarimpoTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(garimpo.GarimpoError):
                 garimpo.ensure_https_affiliate_link(url)
 
+
+    def test_import_csv_skips_leading_empty_lines(self):
+        raw = self.csv.read_text(encoding="utf-8")
+        self.csv.write_text("\n  \n" + raw, encoding="utf-8")
+        self.assertEqual(garimpo.import_csv(self.csv, self.store), 1)
+        self.assertIn("test-product-1", garimpo.load_store(self.store)["pins"])
+
     def test_import_and_no_duplicate_overwrite(self):
         self.assertEqual(garimpo.import_csv(self.csv, self.store), 1)
         state = garimpo.load_store(self.store)
