@@ -128,6 +128,10 @@ def stylize(pin: dict, out_dir: Path, *, provider: str = "local",
         raise CreativeError("Confirme direitos de uso comercial da imagem antes de estilizar.")
     if provider == "openai" and not allow_paid_ai:
         raise CreativeError("Chamadas pagas requerem a opção explícita --allow-paid-ai.")
+    try:
+        from free_image_providers import FreeProviderError
+    except ModuleNotFoundError:
+        from automation.free_image_providers import FreeProviderError
     if provider in ("aihorde", "hf-spaces"):
         try:
             from free_image_providers import (
