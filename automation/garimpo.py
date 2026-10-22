@@ -498,6 +498,7 @@ def ingest_product_url(url: str, store: Path, *, affiliate_url: str = "",
             metadata["warnings"].append(f"Imagem indisponível: {exc}")
     pin = {
         "id": id_, "item_id": metadata["item_id"], "ml_verification": None,
+        "ml_category_id": metadata.get("ml_category_id", ""),
         "title": selected_title, "description": summary + "\n\n" + DISCLOSURE,
         "category": cat, "affiliate_url": url_link,
         "affiliate_url_confirmed": bool(confirm_affiliate_link),
@@ -652,6 +653,9 @@ def build_parser() -> argparse.ArgumentParser:
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
     show = sub.add_parser("show", help="Mostra dados e pendências do produto para revisão")
     show.add_argument("id")
+    knowledge = sub.add_parser("knowledge", help="Mostra os textos knowledge selecionados para o criativo")
+    knowledge.add_argument("id")
+    knowledge.add_argument("--prompt", action="store_true", help="Exibe o prompt editorial completo")
     prep = sub.add_parser("prepare", help="Gera imagem vertical do Pin sem publicar")
     prep.add_argument("id")
     prep.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -737,8 +741,19 @@ def run(argv: list[str] | None = None) -> int:
                 print(f"{id_:<20} {pin['status']:<13} {pin['title']}")
         return 0
     pin = get_pin(state, args.id)
+    if args.command == "knowledge":
+        try:
+            from prompt_templates import select_knowledge, make_prompt, knowledge_path
+        except ModuleNotFoundError:
+            from automation.prompt_templates import select_knowledge, make_prompt, knowledge_path
+        selection = select_knowledge(pin)
+        print(f"Conhecimento: {selection['slug']} | origem: {selection['reason']}")
+        print(f"Documento: {knowledge_path(pin)}")
+        if args.prompt:
+            print(make_prompt(pin))
+        return 0
     if args.command == "show":
-        fields = ("id", "status", "title", "category", "source_url", "item_id",
+        fields = ("id", "status", "title", "category", "source_url", "item_id", "ml_category_id",
                   "metadata_source", "metadata_verified", "image_path", "image_license_confirmed",
                   "affiliate_url", "affiliate_url_confirmed", "affiliate_link_pending",
                   "title_confirmed", "category_confirmed", "stylized_image_path", "preview_path", "notes")

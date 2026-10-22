@@ -2,7 +2,9 @@
 
 Ferramenta local para organizar produtos **reais** do programa de afiliados do Mercado Livre, preparar Pins verticais com a identidade Garimpo da Vez, revisar cada criação e publicar **um Pin por ação explícita** via API oficial do Pinterest.
 
-**Novo pipeline por URL + auxílio do navegador + edição visual opcional:** consulte [PIPELINE.md](PIPELINE.md), com os comandos `ingest-url`, `affiliate-link`, `review`, `stylize`, `auto` e `confirm-link`. O fluxo exige revisão de direitos da imagem, dados do produto e vínculo de afiliado. A etapa `local` é tratamento gráfico **não generativo**; a edição com IA é opcional e pode ser cobrada.
+**Novo pipeline por URL + auxílio do navegador + edição visual opcional:** consulte [PIPELINE.md](PIPELINE.md), com os comandos `ingest-url`, `affiliate-link`, `review`, `stylize`, `auto`, `knowledge` e `confirm-link`. O fluxo exige revisão de direitos da imagem, dados do produto e vínculo de afiliado. A etapa `local` é tratamento gráfico **não generativo**; a edição com IA é opcional e pode ser cobrada.
+
+**Skill e base de conhecimento por categoria:** `automation/skills/SKILL.md` consulta `automation/knowledge/`, com textos editoriais específicos e um catálogo oficial MLB (IDs + nomes obtidos pela API). Veja [knowledge/README.md](knowledge/README.md). Para conferir a direção criativa escolhida use `python automation/garimpo.py knowledge ID_DO_PRODUTO --prompt`. Para sincronizar os nomes de categorias quando a API permitir: `python automation/sync_categories.py --with-oauth`.
 
 ## Requisitos e limites reais
 

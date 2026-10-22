@@ -1,1 +1,0 @@
-Direção de arte de tecnologia: ambiente moderno e funcional, luz de recorte sutil e fundo neutro. Produto original deve permanecer reconhecível, com conectores, marca e componentes inalterados. Não representar desempenho, métricas ou compatibilidades não confirmadas.
