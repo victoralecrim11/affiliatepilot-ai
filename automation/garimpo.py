@@ -138,7 +138,8 @@ def save_store(path: Path, data: dict) -> None:
 def import_csv(csv_path: Path, store_path: Path) -> int:
     csv_path = csv_path.resolve()
     with csv_path.open(encoding="utf-8-sig", newline="") as fp:
-        reader = csv.DictReader(fp)
+        # Ignore empty/whitespace-only lines, including those before the header.
+        reader = csv.DictReader(line for line in fp if line.strip())
         if not reader.fieldnames or not set(CSV_FIELDS).issubset(set(reader.fieldnames)):
             raise GarimpoError("CSV deve conter: " + ", ".join(CSV_FIELDS))
         pending = {}
