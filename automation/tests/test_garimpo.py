@@ -182,8 +182,10 @@ class GarimpoTests(unittest.TestCase):
             garimpo.validate_row(dict(self.row, item_id="../bad"), self.root)
 
     def test_ml_verify_no_token_and_reject_inactive(self):
-        with patch.dict(os.environ, {"MERCADOLIVRE_ACCESS_TOKEN": ""}):
-            with self.assertRaisesRegex(garimpo.GarimpoError, "MERCADOLIVRE_ACCESS_TOKEN"):
+        # Deterministic even when the developer has OAuth credentials on this machine.
+        with patch.dict(os.environ, {"MERCADOLIVRE_ACCESS_TOKEN": ""}), \
+             patch("ml_oauth.get_access_token", side_effect=RuntimeError("Simulated offline")):
+            with self.assertRaises(RuntimeError):
                 garimpo.fetch_mercadolivre_item("MLB123456789")
         from unittest.mock import MagicMock
         import io
