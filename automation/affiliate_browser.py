@@ -73,7 +73,8 @@ def _clipboard(page) -> str:
 
 
 def copy_affiliate_link(product_url: str, profile_dir: Path, *,
-                        interactive: bool = True, browser_channel: str = "msedge") -> str:
+                        interactive: bool = True, browser_channel: str = "msedge",
+                        cdp_url: str = "") -> str:
     """Abre HOME -> Central -> Gerador de links, tenta copiar o link aprovado.
 
     Se a UI não corresponder, a pessoa deve clicar e copiar no navegador aberto.
@@ -88,6 +89,25 @@ def copy_affiliate_link(product_url: str, profile_dir: Path, *,
         raise AffiliateBrowserError(
             "Instale Playwright: python -m pip install -r automation/requirements-browser.txt"
         ) from exc
+    if cdp_url:
+        from urllib.parse import urlsplit
+        endpoint = urlsplit(cdp_url)
+        if endpoint.scheme != "http" or endpoint.hostname not in ("127.0.0.1", "localhost") or endpoint.port is None or endpoint.username or endpoint.password or endpoint.path not in ("", "/"):
+            raise AffiliateBrowserError("CDP deve usar somente http://127.0.0.1:PORTA")
+        with sync_playwright() as pw:
+            try:
+                browser = pw.chromium.connect_over_cdp(cdp_url, timeout=9000)
+            except Exception as exc:
+                raise AffiliateBrowserError("CDP indisponível. Inicie Edge com porta e perfil dedicados.") from exc
+            if not browser.contexts:
+                raise AffiliateBrowserError("CDP sem contexto de navegador.")
+            context = browser.contexts[0]
+            page = context.new_page()
+            try:
+                return _affiliate_flow(page, context, product_url)
+            finally:
+                page.close()
+                browser.close()
     profile_dir.mkdir(parents=True, exist_ok=True)
     # Só usa perfil SEPARADO e explicitamente dedicado; nunca carrega perfil pessoal.
     with sync_playwright() as pw:
@@ -99,47 +119,8 @@ def copy_affiliate_link(product_url: str, profile_dir: Path, *,
         except Exception as exc:
             raise AffiliateBrowserError("Navegador Edge não disponível. Instale Edge e Playwright, ou use --browser chromium.") from exc
         try:
-            context.grant_permissions(["clipboard-read", "clipboard-write"], origin=HOME.rstrip("/"))
             page = context.pages[0] if context.pages else context.new_page()
-            print("Abrindo página inicial do Mercado Livre no navegador separado...")
-            page.goto(HOME, wait_until="domcontentloaded", timeout=35000)
-            print("Faça login manualmente se necessário. Não forneça sua senha ao script.")
-            input("Quando estiver na conta de afiliados, pressione Enter para continuar...")
-            print("Tentando abrir Central de Afiliados...")
-            if not _click_any(page, AFFILIATE_CANDIDATES, 4500):
-                print("Não encontrei o botão Central de Afiliados automaticamente.")
-                input("Clique em Central de Afiliados no navegador e pressione Enter...")
-            # Pode abrir outra aba: confere abas cujo domínio é ML.
-            pages = [p for p in context.pages if _page_is_allowed(p)]
-            page = pages[-1] if pages else page
-            print("Tentando acessar Gerador de Links na Central...")
-            if not _click_any(page, GENERATOR_CANDIDATES, 4500):
-                print("Gerador não encontrado. Selecione o produto e clique em Compartilhar.")
-                input("Depois de abrir a janela do produto na Central, pressione Enter...")
-                pages = [p for p in context.pages if _page_is_allowed(p)]
-                page = pages[-1] if pages else page
-                _click_any(page, SHARE_CANDIDATES, 3500)
-            else:
-                # Gerador oficial: cole a URL no campo visível; se não existir, fallback manual.
-                field = page.get_by_role("textbox").first
-                try:
-                    field.fill(product_url, timeout=3500)
-                    _click_any(page, re.compile(r"gerar|criar link", re.I), 3500)
-                except Exception:
-                    print("Não foi possível preencher o gerador; preencha a URL manualmente.")
-            previous_clipboard = _clipboard(page)
-            clicked = _click_any(page, re.compile(r"^copiar link$", re.I), 2500)
-            copied = _clipboard(page)
-            if clicked and copied and copied != previous_clipboard:
-                # Mesmo após cópia, confirmação humana específica antes da aprovação.
-                return copied
-            print("Copie o link pelo botão oficial 'Copiar link' no navegador.")
-            input("Após copiar, pressione Enter para importar da área de transferência...")
-            copied = _clipboard(page)
-            if not copied:
-                raise AffiliateBrowserError("Link não obtido. Use --affiliate-url com o link oficial copiado manualmente.")
-            print("Confira o link no terminal antes de confirmar; ele pode ser de outro produto.")
-            return copied
+            return _affiliate_flow(page, context, product_url)
         finally:
             context.close()
 
@@ -150,3 +131,45 @@ def _page_is_allowed(page) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _affiliate_flow(page, context, product_url: str) -> str:
+    print("Abrindo página inicial do Mercado Livre no navegador separado...")
+    page.goto(HOME, wait_until="domcontentloaded", timeout=35000)
+    print("Faça login manualmente se necessário. Não forneça sua senha ao script.")
+    input("Quando estiver na conta de afiliados, pressione Enter para continuar...")
+    print("Tentando abrir Central de Afiliados...")
+    if not _click_any(page, AFFILIATE_CANDIDATES, 4500):
+        print("Não encontrei o botão Central de Afiliados automaticamente.")
+        input("Clique em Central de Afiliados no navegador e pressione Enter...")
+    # Pode abrir outra aba: confere abas cujo domínio é ML.
+    pages = [p for p in context.pages if _page_is_allowed(p)]
+    page = pages[-1] if pages else page
+    print("Tentando acessar Gerador de Links na Central...")
+    if not _click_any(page, GENERATOR_CANDIDATES, 4500):
+        print("Gerador não encontrado. Selecione o produto e clique em Compartilhar.")
+        input("Depois de abrir a janela do produto na Central, pressione Enter...")
+        pages = [p for p in context.pages if _page_is_allowed(p)]
+        page = pages[-1] if pages else page
+        _click_any(page, SHARE_CANDIDATES, 3500)
+    else:
+        # Gerador oficial: cole a URL no campo visível; se não existir, fallback manual.
+        field = page.get_by_role("textbox").first
+        try:
+            field.fill(product_url, timeout=3500)
+            _click_any(page, re.compile(r"gerar|criar link", re.I), 3500)
+        except Exception:
+            print("Não foi possível preencher o gerador; preencha a URL manualmente.")
+    previous_clipboard = _clipboard(page)
+    clicked = _click_any(page, re.compile(r"^copiar link$", re.I), 2500)
+    copied = _clipboard(page)
+    if clicked and copied and copied != previous_clipboard:
+        # Mesmo após cópia, confirmação humana específica antes da aprovação.
+        return copied
+    print("Copie o link pelo botão oficial 'Copiar link' no navegador.")
+    input("Após copiar, pressione Enter para importar da área de transferência...")
+    copied = _clipboard(page)
+    if not copied:
+        raise AffiliateBrowserError("Link não obtido. Use --affiliate-url com o link oficial copiado manualmente.")
+    print("Confira o link no terminal antes de confirmar; ele pode ser de outro produto.")
+    return copied
