@@ -439,14 +439,15 @@ def publish_pin(pin: dict, *, token: str | None = None) -> dict:
 
 
 
-def capture_affiliate_link(product_url: str, browser: str = "msedge") -> str:
+def capture_affiliate_link(product_url: str, browser: str = "msedge", cdp_url: str = "") -> str:
     try:
         from affiliate_browser import copy_affiliate_link, AffiliateBrowserError
     except ModuleNotFoundError:
         from automation.affiliate_browser import copy_affiliate_link, AffiliateBrowserError
     try:
         return ensure_https_affiliate_link(copy_affiliate_link(
-            product_url, BASE_DIR / "data" / "browser-profile", browser_channel=browser))
+            product_url, BASE_DIR / "data" / "browser-profile", browser_channel=browser,
+            cdp_url=cdp_url))
     except AffiliateBrowserError as exc:
         raise GarimpoError(str(exc)) from exc
 
@@ -641,6 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--affiliate-browser", action="store_true",
                          help="Abre Central de Afiliados com Playwright para copiar link (login humano)")
         cmd.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
+        cmd.add_argument("--cdp-url", default="", help="Edge local já aberto via CDP, ex.: http://127.0.0.1:9333")
         if name == "auto":
             cmd.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai", "none"], default="local")
             cmd.add_argument("--allow-paid-ai", action="store_true")
@@ -669,6 +671,7 @@ def build_parser() -> argparse.ArgumentParser:
     link.add_argument("id")
     link.add_argument("--product-url", default="", help="URL normal do anúncio; padrão: source_url")
     link.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
+    link.add_argument("--cdp-url", default="", help="Reutiliza Edge dedicado via CDP")
     confirm_link = sub.add_parser("confirm-link", help="Confirma após revisão humana que o link pertence ao produto")
     confirm_link.add_argument("id")
     confirm_link.add_argument("--confirm", action="store_true", required=True)
@@ -736,7 +739,7 @@ def run(argv: list[str] | None = None) -> int:
         if args.affiliate_browser:
             if affiliate_url:
                 raise GarimpoError("Escolha --affiliate-url ou --affiliate-browser, não ambos.")
-            affiliate_url = capture_affiliate_link(args.url, args.browser)
+            affiliate_url = capture_affiliate_link(args.url, args.browser, args.cdp_url)
         pin = ingest_product_url(
             args.url, args.store,
             affiliate_url=affiliate_url, category=args.category,
@@ -834,7 +837,7 @@ def run(argv: list[str] | None = None) -> int:
         product_url = args.product_url or pin.get("source_url")
         if not product_url:
             raise GarimpoError("Informe --product-url com URL real do anúncio.")
-        pin["affiliate_url"] = capture_affiliate_link(product_url, args.browser)
+        pin["affiliate_url"] = capture_affiliate_link(product_url, args.browser, args.cdp_url)
         pin["affiliate_link_pending"] = True
         pin["affiliate_url_confirmed"] = False
         pin["status"] = "draft"
