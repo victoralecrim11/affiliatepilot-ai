@@ -2,16 +2,19 @@
 
 Ferramenta local para organizar produtos **reais** do programa de afiliados do Mercado Livre, preparar Pins verticais com a identidade Garimpo da Vez, revisar cada criação e publicar **um Pin por ação explícita** via API oficial do Pinterest.
 
+**Novo pipeline por URL + auxílio do navegador + edição visual opcional:** consulte [PIPELINE.md](PIPELINE.md), com os comandos `ingest-url`, `affiliate-link`, `review`, `stylize`, `auto` e `confirm-link`. O fluxo exige revisão de direitos da imagem, dados do produto e vínculo de afiliado. A etapa `local` é tratamento gráfico **não generativo**; a edição com IA é opcional e pode ser cobrada.
+
 ## Requisitos e limites reais
 
 - Python 3.11+ e Pillow. Windows PowerShell compatível.
-- Consulta opcional de anúncios via API oficial `GET /items/{MLB_ID}` com `MERCADOLIVRE_ACCESS_TOKEN` autorizado: status, título e preço momentâneo. A API não confirma comissão nem cria links de afiliado.\n- Os links **não são gerados** pelo script. Copie-os da Barra/Central de Afiliados do Mercado Livre. Não faça scraping, não utilize dados inventados e não use credenciais do Mercado Livre neste programa.
-- Prepare imagens próprias ou de uso comercial **autorizado**, retratando fielmente o produto. O script não baixa imagens de terceiros, não usa fotos do Pinterest nem fabrica avaliações, preços ou descontos.
+- Consulta opcional de anúncios via API oficial `GET /items/{MLB_ID}`. HTTP 403 pode impedir acesso a anúncios de terceiros. A API não confirma comissão nem cria links de afiliado.
+- Links de comissão: o assistente Playwright pode abrir a Central oficial para você copiar o link com autenticação interativa. Sem API privada nem credenciais no script; cada link precisa ser conferido.
+- Use imagens próprias ou de uso comercial **autorizado**, retratando fielmente o produto. O download de uma imagem da vitrine só é permitido pelo comando após confirmação explícita dos direitos. O script não usa fotos do Pinterest nem fabrica avaliações, preços ou descontos.
 - A postagem só funciona após aprovação da integração do Pinterest, OAuth 2.0 com permissão `pins:write` para sua conta Business, além de `boards:read` para listar pastas. O Pinterest exige consentimento por Pin; não é um bot de publicação em massa.
 - **Publicar requer um ID de pasta (`board_id`)** na API oficial. Isso difere de certas telas do aplicativo, que podem oferecer publicação sem escolher pasta.
 - Não adicionamos segredos ou tokens ao repositório. Use `PINTEREST_ACCESS_TOKEN` no ambiente. O script não automatiza autenticação nem contorna limitações da API.
 - Não há publicação agendada ou repetição automática. Erros de rede entram em `needs_check` para conciliação manual e impedir Pins duplicados.
-- O script cria imagens 1000 × 1500 com a fotografia original no centro (sem fazer montagens que deturpem o produto).
+- O script cria imagens 1000 × 1500 com identidade Garimpo da Vez; pode usar tratamento local gratuito ou uma imagem modificada por IA, sujeita a revisão de fidelidade.
 
 ## Instalação (PowerShell)
 
@@ -93,7 +96,7 @@ Prepare ou aprove novamente, conforme necessário. **Não repita automaticamente
 
 - Respeite as políticas de conteúdo comercial e desenvolvedores do Pinterest; só crie Pins que você aprova individualmente.
 - A descrição informa comissão, e a imagem inclui aviso de afiliado.
-- O programa não gerencia vendas, pagamentos, analytics, inventário ou a criação de links de afiliado. A leitura de um anúncio via API oficial é opcional.
+- O programa não gerencia vendas, pagamentos, analytics ou inventário. A criação do link ocorre no portal oficial de afiliados, por interação no navegador (assistida e não garantida), não pela API oficial de itens.
 - A fila e criativos são armazenados sob `automation/data` e `automation/out` (gitignored).
 - Não versione arquivos com links comerciais, fotos de terceiros, dados de clientes, tokens, credenciais, etc.
 

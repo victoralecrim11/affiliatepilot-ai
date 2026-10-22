@@ -1,0 +1,1 @@
+Direção de arte para utilidades: composição clara e minimalista, foco no uso cotidiano e organização visual. Sem criar funcionalidades, tamanhos, versões adicionais ou situações de uso que deturpem a mercadoria.

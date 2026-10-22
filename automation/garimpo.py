@@ -98,6 +98,8 @@ def validate_row(row: dict[str, str], csv_dir: Path) -> dict:
         "description": desc,
         "category": cat,
         "affiliate_url": ensure_https_affiliate_link(row["affiliate_url"]),
+        "affiliate_url_confirmed": True,
+        "image_license_confirmed": True,
         "image_path": str(image),
         "status": "draft",
         "board_id": "",
@@ -308,7 +310,9 @@ def prepare_image(pin: dict, out_dir: Path) -> Path:
         from PIL import Image, ImageDraw, ImageOps
     except ImportError as exc:
         raise GarimpoError("Pillow ausente. Instale com: python -m pip install -r automation/requirements.txt") from exc
-    inp = Path(pin["image_path"])
+    if pin.get("image_license_confirmed", True) is False:
+        raise GarimpoError("Confirme direitos de uso da imagem antes de preparar.")
+    inp = Path(pin.get("stylized_image_path") or pin["image_path"])
     if not inp.is_file():
         raise GarimpoError("Imagem de origem não encontrada: " + str(inp))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -358,6 +362,15 @@ def fingerprint(pin: dict) -> str:
 def approve_pin(pin: dict, board_id: str) -> None:
     if pin["status"] != "prepared":
         raise GarimpoError("Primeiro prepare o Pin (status=prepared)")
+    if pin.get("affiliate_link_pending"):
+        raise GarimpoError("Confirme o link obtido no navegador com confirm-link ID --confirm.")
+    if pin.get("created_by_url"):
+        if not pin.get("affiliate_url_confirmed") or not pin.get("affiliate_url"):
+            raise GarimpoError("Confirme um link oficial de afiliado antes de aprovar.")
+        if not pin.get("image_license_confirmed"):
+            raise GarimpoError("Confirme direitos de uso da imagem antes de aprovar.")
+        if not pin.get("title_confirmed") or not pin.get("category_confirmed"):
+            raise GarimpoError("Revise o título e a categoria antes de aprovar.")
     if not re.fullmatch(r"[0-9]{5,30}", board_id):
         raise GarimpoError("Informe o ID numérico real da pasta (board) obtido pela API do Pinterest")
     pin["board_id"] = board_id
@@ -398,6 +411,15 @@ def pinterest_call(path: str, method: str = "GET", payload: dict | None = None, 
 def publish_pin(pin: dict, *, token: str | None = None) -> dict:
     if pin["status"] != "approved":
         raise GarimpoError("Somente Pins aprovados individualmente podem ser publicados")
+    if pin.get("affiliate_link_pending"):
+        raise GarimpoError("Link de afiliado ainda não confirmado.")
+    if pin.get("created_by_url") and (
+        not pin.get("affiliate_url_confirmed")
+        or not pin.get("image_license_confirmed")
+        or not pin.get("title_confirmed")
+        or not pin.get("category_confirmed")
+    ):
+        raise GarimpoError("Pin não revisado: verifique direitos, dados e link oficial.")
     if pin["approval_sha256"] != fingerprint(pin):
         raise GarimpoError("Conteúdo mudou após aprovação. Prepare e aprove novamente.")
     image = Path(pin["preview_path"])
@@ -416,14 +438,220 @@ def publish_pin(pin: dict, *, token: str | None = None) -> dict:
     return pinterest_call("/pins", "POST", payload, token=token)
 
 
+
+def capture_affiliate_link(product_url: str, browser: str = "msedge") -> str:
+    try:
+        from affiliate_browser import copy_affiliate_link, AffiliateBrowserError
+    except ModuleNotFoundError:
+        from automation.affiliate_browser import copy_affiliate_link, AffiliateBrowserError
+    try:
+        return ensure_https_affiliate_link(copy_affiliate_link(
+            product_url, BASE_DIR / "data" / "browser-profile", browser_channel=browser))
+    except AffiliateBrowserError as exc:
+        raise GarimpoError(str(exc)) from exc
+
+
+def ingest_product_url(url: str, store: Path, *, affiliate_url: str = "",
+                       category: str = "", title: str = "", image_file: str = "",
+                       confirm_image_rights: bool = False,
+                       confirm_affiliate_link: bool = False) -> dict:
+    """Cria rascunho sem inventar dados e sem sobrescrever produtos existentes."""
+    try:
+        from ml_ingest import get_product_metadata, download_product_image, local_id
+    except ModuleNotFoundError:
+        from automation.ml_ingest import get_product_metadata, download_product_image, local_id
+    token = os.environ.get("MERCADOLIVRE_ACCESS_TOKEN", "")
+    if not token:
+        try:
+            from ml_oauth import get_access_token
+            token = get_access_token()
+        except Exception:
+            # Sem OAuth ativo, API pública e metatags podem funcionar.
+            token = ""
+    metadata = get_product_metadata(url, token=token or None)
+    id_ = local_id(metadata)
+    state = load_store(store)
+    if id_ in state["pins"]:
+        raise GarimpoError(f"Produto {id_} já existe na fila. Use review/stylize/prepare.")
+    cat = category or metadata["category"] or "lifestyle"
+    if cat not in CATEGORIES:
+        raise GarimpoError("Categoria inválida: " + ", ".join(CATEGORIES))
+    selected_title = (title or metadata["title"] or f"Dados pendentes: {id_}").strip()[:100]
+    summary = (metadata["summary"] or "Informações disponíveis no anúncio; confirme detalhes e especificações antes da compra.").strip()[:550]
+    url_link = affiliate_url or (url if urlsplit(url).hostname == "meli.la" else "")
+    if url_link:
+        url_link = ensure_https_affiliate_link(url_link)
+    if confirm_affiliate_link and not url_link:
+        raise GarimpoError("Informe um link gerado no Portal de Afiliados antes de confirmá-lo.")
+    image_path = ""
+    if image_file:
+        source = Path(image_file).expanduser().resolve()
+        if source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"} or not source.is_file():
+            raise GarimpoError("Arquivo local de imagem inexistente ou formato inválido")
+        image_path = str(source)
+    elif confirm_image_rights and metadata.get("image_url"):
+        try:
+            image_path = str(download_product_image(
+                metadata["image_url"], BASE_DIR / "data" / "sources", id_
+            ))
+        except (ValueError, OSError) as exc:
+            metadata["warnings"].append(f"Imagem indisponível: {exc}")
+    pin = {
+        "id": id_, "item_id": metadata["item_id"], "ml_verification": None,
+        "title": selected_title, "description": summary + "\n\n" + DISCLOSURE,
+        "category": cat, "affiliate_url": url_link,
+        "affiliate_url_confirmed": bool(confirm_affiliate_link),
+        "image_license_confirmed": bool(confirm_image_rights and image_path),
+        "title_confirmed": bool(title),
+        "category_confirmed": bool(category),
+        "image_path": image_path, "source_image_url": metadata["image_url"],
+        "source_url": url, "resolved_url": metadata["resolved_url"],
+        "metadata_source": metadata["metadata_source"],
+        "metadata_verified": metadata["metadata_verified"],
+        "notes": metadata["warnings"],
+        "created_by_url": True, "stylized_image_path": "",
+        "creative_provider": "", "status": "draft", "board_id": "",
+        "preview_path": "", "approval_sha256": "", "pin_id": "",
+        "created_at": now_iso(),
+    }
+    state["pins"][id_] = pin
+    save_store(store, state)
+    return pin
+
+
+def review_url_draft(pin: dict, *, title: str = "", category: str = "",
+                     affiliate_url: str = "", image_file: str = "",
+                     confirm_title: bool = False, confirm_category: bool = False,
+                     confirm_image_rights: bool = False,
+                     confirm_affiliate_link: bool = False) -> None:
+    if pin["status"] not in {"draft", "prepared"}:
+        raise GarimpoError("Não edite Pins aprovados ou publicados.")
+    if not pin.get("created_by_url"):
+        raise GarimpoError("Este comando é para produtos importados por URL.")
+    if title:
+        if not 5 <= len(title.strip()) <= 100:
+            raise GarimpoError("Título deve ter 5-100 caracteres")
+        pin["title"] = title.strip()
+        pin["title_confirmed"] = False
+    if category:
+        if category not in CATEGORIES:
+            raise GarimpoError("Categoria inválida")
+        pin["category"] = category
+        pin["category_confirmed"] = False
+    if affiliate_url:
+        pin["affiliate_url"] = ensure_https_affiliate_link(affiliate_url)
+        pin["affiliate_url_confirmed"] = False
+    if image_file:
+        source = Path(image_file).expanduser().resolve()
+        if not source.is_file() or source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+            raise GarimpoError("Imagem local não encontrada")
+        pin["image_path"] = str(source)
+        pin["image_license_confirmed"] = False
+    if confirm_image_rights:
+        if not pin.get("image_path") and pin.get("source_image_url"):
+            try:
+                from ml_ingest import download_product_image
+            except ModuleNotFoundError:
+                from automation.ml_ingest import download_product_image
+            pin["image_path"] = str(download_product_image(
+                pin["source_image_url"], BASE_DIR / "data" / "sources", pin["id"]))
+        if not pin.get("image_path"):
+            raise GarimpoError("Sem imagem disponível para autorizar; informe --image-file.")
+        pin["image_license_confirmed"] = True
+    if confirm_affiliate_link:
+        if not pin["affiliate_url"]:
+            raise GarimpoError("Informe --affiliate-url gerado no Portal do Afiliado.")
+        pin["affiliate_url_confirmed"] = True
+        pin["affiliate_link_pending"] = False
+    if confirm_title:
+        if pin["title"].startswith("Dados pendentes:"):
+            raise GarimpoError("Informe o título verdadeiro antes de confirmar.")
+        pin["title_confirmed"] = True
+    if confirm_category:
+        pin["category_confirmed"] = True
+    # Uma mudança na revisão invalida criativo antigo e impede publicação desatualizada.
+    pin["status"] = "draft"
+    pin["preview_path"] = ""
+    pin["stylized_image_path"] = ""
+    pin["approval_sha256"] = ""
+
+
+def stylize_draft(pin: dict, out: Path, provider: str, *, allow_paid_ai: bool) -> Path:
+    if pin["status"] not in {"draft", "prepared"}:
+        raise GarimpoError("Não estilize um Pin aprovado/publicado.")
+    try:
+        from creative_ai import stylize, CreativeError
+    except ModuleNotFoundError:
+        from automation.creative_ai import stylize, CreativeError
+    try:
+        target = stylize(pin, out / "styled", provider=provider, allow_paid_ai=allow_paid_ai)
+    except CreativeError as exc:
+        raise GarimpoError(str(exc)) from exc
+    pin["stylized_image_path"] = str(target)
+    pin["creative_provider"] = provider
+    pin["status"] = "draft"
+    pin["preview_path"] = ""
+    pin["approval_sha256"] = ""
+    return target
+
+
+def missing_for_creative(pin: dict) -> list[str]:
+    missing = []
+    if not pin.get("image_path") or not Path(pin["image_path"]).is_file():
+        missing.append("imagem (use --confirm-image-rights ou review --image-file)")
+    if not pin.get("image_license_confirmed", True):
+        missing.append("autorização de direitos da imagem")
+    if pin.get("title", "").startswith("Dados pendentes:"):
+        missing.append("título real")
+    return missing
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Garimpo da Vez — curadoria e publicação supervisionada de Pins")
     parser.add_argument("--store", type=Path, default=DEFAULT_STORE, help="Fila JSON privada (padrão: automation/data/pins.json)")
     sub = parser.add_subparsers(dest="command", required=True)
     im = sub.add_parser("import-csv", help="Importa produtos reais de um CSV sem sobrescrever existentes")
     im.add_argument("csv", type=Path)
+    for name in ("ingest-url", "auto"):
+        cmd = sub.add_parser(name, help="Obtém dados permitidos do anúncio via URL; auto também prepara um Pin local")
+        cmd.add_argument("url", help="URL HTTPS de produto Mercado Livre ou link curto meli.la")
+        cmd.add_argument("--affiliate-url", default="", help="Link oficial gerado na Central de Afiliados")
+        cmd.add_argument("--category", choices=list(CATEGORIES), default="")
+        cmd.add_argument("--title", default="", help="Título verificado manualmente, se a API bloquear")
+        cmd.add_argument("--image-file", default="", help="Foto de origem local, se acesso remoto falhar")
+        cmd.add_argument("--confirm-image-rights", action="store_true", help="Declara direitos de uso comercial e autoriza baixar a foto")
+        cmd.add_argument("--confirm-affiliate-link", action="store_true", help="Confirma que o link foi gerado no Portal de Afiliados")
+        cmd.add_argument("--affiliate-browser", action="store_true",
+                         help="Abre Central de Afiliados com Playwright para copiar link (login humano)")
+        cmd.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
+        if name == "auto":
+            cmd.add_argument("--provider", choices=["local", "openai", "none"], default="local")
+            cmd.add_argument("--allow-paid-ai", action="store_true")
+            cmd.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
+    rev.add_argument("id")
+    rev.add_argument("--title", default="")
+    rev.add_argument("--category", choices=list(CATEGORIES), default="")
+    rev.add_argument("--affiliate-url", default="")
+    rev.add_argument("--image-file", default="")
+    for flag in ("confirm-title", "confirm-category", "confirm-image-rights", "confirm-affiliate-link"):
+        rev.add_argument("--" + flag, action="store_true")
+    link = sub.add_parser("affiliate-link", help="Obtém link pela Central em navegador interativo para um rascunho")
+    link.add_argument("id")
+    link.add_argument("--product-url", default="", help="URL normal do anúncio; padrão: source_url")
+    link.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
+    confirm_link = sub.add_parser("confirm-link", help="Confirma após revisão humana que o link pertence ao produto")
+    confirm_link.add_argument("id")
+    confirm_link.add_argument("--confirm", action="store_true", required=True)
+    st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
+    st.add_argument("id")
+    st.add_argument("--provider", choices=["local", "openai"], default="local")
+    st.add_argument("--allow-paid-ai", action="store_true")
+    st.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ls = sub.add_parser("list", help="Exibe situação dos Pins")
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
+    show = sub.add_parser("show", help="Mostra dados e pendências do produto para revisão")
+    show.add_argument("id")
     prep = sub.add_parser("prepare", help="Gera imagem vertical do Pin sem publicar")
     prep.add_argument("id")
     prep.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -450,6 +678,46 @@ def run(argv: list[str] | None = None) -> int:
         amount = import_csv(args.csv, args.store)
         print(f"{amount} produto(s) importado(s). Execute 'list' e 'prepare ID'.")
         return 0
+    if args.command in {"ingest-url", "auto"}:
+        affiliate_url = args.affiliate_url
+        if args.affiliate_browser:
+            if affiliate_url:
+                raise GarimpoError("Escolha --affiliate-url ou --affiliate-browser, não ambos.")
+            affiliate_url = capture_affiliate_link(args.url, args.browser)
+        pin = ingest_product_url(
+            args.url, args.store,
+            affiliate_url=affiliate_url, category=args.category,
+            title=args.title, image_file=args.image_file,
+            confirm_image_rights=args.confirm_image_rights,
+            confirm_affiliate_link=args.confirm_affiliate_link,
+        )
+        print(f"Rascunho criado: {pin['id']} | dados: {pin['metadata_source']} | MLB: {pin['item_id'] or 'não confirmado'}")
+        for note in pin["notes"]:
+            print("ATENÇÃO:", note)
+        if args.affiliate_browser:
+            pin["affiliate_link_pending"] = True
+            pin["affiliate_url_confirmed"] = False
+            state = load_store(args.store)
+            state["pins"][pin["id"]] = pin
+            save_store(args.store, state)
+            print("Link coletado no navegador: confirme produto e origem com confirm-link ID --confirm.")
+        if args.command == "auto":
+            missing = missing_for_creative(pin)
+            if missing:
+                print("Preparação pausada; pendências:", "; ".join(missing))
+                print("Use review ID para complementar. Nenhum Pin foi publicado.")
+            else:
+                if args.provider != "none":
+                    styled = stylize_draft(pin, args.out.resolve(), args.provider, allow_paid_ai=args.allow_paid_ai)
+                    print(f"Imagem estilizada ({args.provider}): {styled}")
+                path = prepare_image(pin, args.out.resolve())
+                pin["preview_path"] = str(path)
+                pin["status"] = "prepared"
+                print(f"Pin preparado: {path}. Revisão e aprovação ainda obrigatórias.")
+            state = load_store(args.store)
+            state["pins"][pin["id"]] = pin
+            save_store(args.store, state)
+        return 0
     if args.command == "boards":
         resp = pinterest_call("/boards")
         for board in resp.get("items", []):
@@ -469,7 +737,47 @@ def run(argv: list[str] | None = None) -> int:
                 print(f"{id_:<20} {pin['status']:<13} {pin['title']}")
         return 0
     pin = get_pin(state, args.id)
-    if args.command == "verify-ml":
+    if args.command == "show":
+        fields = ("id", "status", "title", "category", "source_url", "item_id",
+                  "metadata_source", "metadata_verified", "image_path", "image_license_confirmed",
+                  "affiliate_url", "affiliate_url_confirmed", "affiliate_link_pending",
+                  "title_confirmed", "category_confirmed", "stylized_image_path", "preview_path", "notes")
+        print(json.dumps({field: pin.get(field) for field in fields}, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "affiliate-link":
+        if pin["status"] not in {"draft", "prepared"}:
+            raise GarimpoError("Não altere links de Pins aprovados/publicados.")
+        product_url = args.product_url or pin.get("source_url")
+        if not product_url:
+            raise GarimpoError("Informe --product-url com URL real do anúncio.")
+        pin["affiliate_url"] = capture_affiliate_link(product_url, args.browser)
+        pin["affiliate_link_pending"] = True
+        pin["affiliate_url_confirmed"] = False
+        pin["status"] = "draft"
+        pin["approval_sha256"] = ""
+        pin["preview_path"] = ""
+        print("Link coletado; confira o produto e execute confirm-link ID --confirm.")
+    elif args.command == "confirm-link":
+        if pin["status"] not in {"draft", "prepared"} or not args.confirm:
+            raise GarimpoError("Confirmação apenas para rascunhos, com --confirm")
+        if not pin.get("affiliate_url"):
+            raise GarimpoError("Rascunho sem link de afiliado")
+        pin["affiliate_url_confirmed"] = True
+        pin["affiliate_link_pending"] = False
+        print("Link de afiliado confirmado. Ainda não foi publicado.")
+    elif args.command == "review":
+        review_url_draft(
+            pin, title=args.title, category=args.category, affiliate_url=args.affiliate_url,
+            image_file=args.image_file, confirm_title=args.confirm_title,
+            confirm_category=args.confirm_category,
+            confirm_image_rights=args.confirm_image_rights,
+            confirm_affiliate_link=args.confirm_affiliate_link,
+        )
+        print(f"Revisão salva: {pin['id']}; agora execute stylize/prepare.")
+    elif args.command == "stylize":
+        target = stylize_draft(pin, args.out.resolve(), args.provider, allow_paid_ai=args.allow_paid_ai)
+        print(f"Tratamento ({args.provider}) salvo em: {target}; execute prepare e revise.")
+    elif args.command == "verify-ml":
         if pin["status"] not in {"draft", "prepared"}:
             raise GarimpoError("Verifique o anúncio antes da aprovação/publicação")
         item_id = (args.item_id or pin.get("item_id") or "").strip().upper()
