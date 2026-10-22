@@ -1,0 +1,531 @@
+{
+  "version": 1,
+  "source": "editorial_category_mapping_with_official_mlb_root_category_names",
+  "legacy": {
+    "casa": "casa_moveis",
+    "tecnologia": "tecnologia",
+    "organizacao": "organizacao",
+    "lifestyle": "lifestyle"
+  },
+  "profiles": {
+    "veiculos": {
+      "aliases": [
+        "veículos",
+        "automóveis e motos"
+      ],
+      "keywords": [
+        "carro",
+        "moto",
+        "bicicleta elétrica",
+        "motor veicular"
+      ]
+    },
+    "acessorios_veiculos": {
+      "aliases": [
+        "acessórios para veículos",
+        "acessórios automotivos"
+      ],
+      "keywords": [
+        "tapete automotivo",
+        "suporte veicular",
+        "farol automotivo",
+        "capa de banco",
+        "retrovisor"
+      ]
+    },
+    "supermercado": {
+      "aliases": [
+        "supermercado",
+        "alimentos e bebidas"
+      ],
+      "keywords": [
+        "café",
+        "chocolate",
+        "arroz",
+        "azeite",
+        "biscoito",
+        "suco",
+        "cesta básica"
+      ]
+    },
+    "tecnologia": {
+      "aliases": [
+        "tecnologia",
+        "celulares e telefones"
+      ],
+      "keywords": [
+        "smartphone",
+        "tablet",
+        "carregador",
+        "powerbank",
+        "smartwatch",
+        "celular"
+      ]
+    },
+    "informatica_gamer": {
+      "aliases": [
+        "informática",
+        "informática e gamer"
+      ],
+      "keywords": [
+        "notebook",
+        "ssd",
+        "processador",
+        "memória ram",
+        "mouse gamer",
+        "teclado gamer",
+        "monitor gamer",
+        "gabinete",
+        "placa mãe",
+        "placa de vídeo"
+      ]
+    },
+    "eletronicos_audio": {
+      "aliases": [
+        "eletrônicos",
+        "áudio e vídeo",
+        "eletrônicos, áudio e vídeo"
+      ],
+      "keywords": [
+        "caixa de som",
+        "microfone",
+        "projetor",
+        "soundbar",
+        "amplificador",
+        "televisor",
+        "tv led"
+      ]
+    },
+    "fotografia_video": {
+      "aliases": [
+        "câmeras e acessórios",
+        "fotografia"
+      ],
+      "keywords": [
+        "câmera fotográfica",
+        "câmera digital",
+        "tripé",
+        "gimbal",
+        "webcam",
+        "ring light"
+      ]
+    },
+    "casa_moveis": {
+      "aliases": [
+        "casa e móveis",
+        "móveis",
+        "casa, móveis e decoração"
+      ],
+      "keywords": [
+        "sofá",
+        "mesa de jantar",
+        "cadeira de jantar",
+        "guarda roupa",
+        "colchão",
+        "cama box",
+        "móveis"
+      ]
+    },
+    "decoracao": {
+      "aliases": [
+        "decoração",
+        "casa e decoração"
+      ],
+      "keywords": [
+        "quadro decorativo",
+        "vaso decorativo",
+        "almofada",
+        "papel de parede",
+        "espelho decorativo",
+        "pôster",
+        "decoração",
+        "quadros",
+        "vasos"
+      ]
+    },
+    "iluminacao_jardim": {
+      "aliases": [
+        "iluminação",
+        "jardim",
+        "jardim e ar livre"
+      ],
+      "keywords": [
+        "refletor",
+        "holofote",
+        "luminária",
+        "lâmpada",
+        "arandela",
+        "fita led",
+        "jardim",
+        "luz solar",
+        "refletores",
+        "holofotes",
+        "luminarias",
+        "lampadas"
+      ]
+    },
+    "organizacao": {
+      "aliases": [
+        "organização",
+        "utilidades domésticas"
+      ],
+      "keywords": [
+        "organizador",
+        "gaveteiro",
+        "caixa organizadora",
+        "colmeia organizadora",
+        "cesto organizador"
+      ]
+    },
+    "cozinha": {
+      "aliases": [
+        "cozinha",
+        "mesa e banho",
+        "utensílios de cozinha"
+      ],
+      "keywords": [
+        "panela",
+        "frigideira",
+        "talher",
+        "cafeteira",
+        "air fryer",
+        "liquidificador",
+        "jogo de pratos"
+      ]
+    },
+    "eletrodomesticos": {
+      "aliases": [
+        "eletrodomésticos"
+      ],
+      "keywords": [
+        "geladeira",
+        "freezer",
+        "fogão",
+        "microondas",
+        "lavadora",
+        "máquina de lavar",
+        "secadora",
+        "aspirador",
+        "geladeiras",
+        "micro-ondas"
+      ]
+    },
+    "esportes_fitness": {
+      "aliases": [
+        "esportes e fitness",
+        "esportes"
+      ],
+      "keywords": [
+        "halter",
+        "esteira",
+        "tapete yoga",
+        "bola de pilates",
+        "caneleira",
+        "munhequeira",
+        "fitness"
+      ]
+    },
+    "ferramentas": {
+      "aliases": [
+        "ferramentas"
+      ],
+      "keywords": [
+        "furadeira",
+        "parafusadeira",
+        "serra circular",
+        "jogo de chaves",
+        "broca",
+        "alicate",
+        "lixadeira"
+      ]
+    },
+    "construcao": {
+      "aliases": [
+        "construção",
+        "materiais de construção"
+      ],
+      "keywords": [
+        "cimento",
+        "telha",
+        "argamassa",
+        "revestimento",
+        "torneira",
+        "tubo pvc",
+        "interruptor"
+      ]
+    },
+    "industria_comercio": {
+      "aliases": [
+        "indústria e comércio"
+      ],
+      "keywords": [
+        "compressor industrial",
+        "balança industrial",
+        "equipamento comercial",
+        "soldadora industrial",
+        "motor industrial"
+      ]
+    },
+    "negocios_escritorio": {
+      "aliases": [
+        "para seu negócio",
+        "escritório",
+        "papelaria e armarinho"
+      ],
+      "keywords": [
+        "impressora térmica",
+        "leitor de código de barras",
+        "etiquetadora",
+        "maquininha de cartão",
+        "pdv",
+        "cadeira escritório"
+      ]
+    },
+    "pet_shop": {
+      "aliases": [
+        "pet shop",
+        "animais"
+      ],
+      "keywords": [
+        "ração",
+        "arranhador",
+        "areia gato",
+        "caminha pet",
+        "aquário",
+        "comedouro pet"
+      ]
+    },
+    "saude": {
+      "aliases": [
+        "saúde",
+        "farmácia"
+      ],
+      "keywords": [
+        "termômetro",
+        "medidor de pressão",
+        "oxímetro",
+        "tala ortopédica",
+        "muleta"
+      ]
+    },
+    "beleza_cuidados": {
+      "aliases": [
+        "beleza e cuidado pessoal",
+        "cosméticos"
+      ],
+      "keywords": [
+        "perfume",
+        "hidratante",
+        "protetor solar",
+        "sérum",
+        "maquiagem",
+        "escova secadora",
+        "shampoo"
+      ]
+    },
+    "moda": {
+      "aliases": [
+        "moda",
+        "roupas e calçados",
+        "calçados, roupas e bolsas"
+      ],
+      "keywords": [
+        "camiseta",
+        "calça jeans",
+        "vestido",
+        "jaqueta",
+        "tênis",
+        "moletom",
+        "blusa"
+      ]
+    },
+    "acessorios_moda": {
+      "aliases": [
+        "acessórios",
+        "joias e relógios"
+      ],
+      "keywords": [
+        "relógio",
+        "óculos",
+        "bolsa feminina",
+        "carteira",
+        "mochila",
+        "brinco",
+        "colar",
+        "pulseira"
+      ]
+    },
+    "bebes": {
+      "aliases": [
+        "bebês"
+      ],
+      "keywords": [
+        "carrinho de bebê",
+        "berço",
+        "mamadeira",
+        "fralda",
+        "chupeta",
+        "cadeirinha infantil"
+      ]
+    },
+    "brinquedos": {
+      "aliases": [
+        "brinquedos",
+        "brinquedos e hobbies"
+      ],
+      "keywords": [
+        "lego",
+        "boneca",
+        "carrinho brinquedo",
+        "quebra cabeça",
+        "jogo de tabuleiro",
+        "brinquedo educativo"
+      ]
+    },
+    "livros_papelaria": {
+      "aliases": [
+        "livros",
+        "papelaria",
+        "livros, revistas e comics"
+      ],
+      "keywords": [
+        "livro",
+        "caderno",
+        "planner",
+        "caneta",
+        "lápis",
+        "apostila",
+        "quadrinhos"
+      ]
+    },
+    "sustentaveis": {
+      "aliases": [
+        "produtos sustentáveis"
+      ],
+      "keywords": [
+        "reutilizável",
+        "compostável",
+        "biodegradável",
+        "sustentável",
+        "ecológico"
+      ]
+    },
+    "lifestyle": {
+      "aliases": [
+        "lifestyle",
+        "outros"
+      ],
+      "keywords": [
+        "achadinho",
+        "lifestyle"
+      ]
+    },
+    "agro": {
+      "aliases": [
+        "agro"
+      ],
+      "keywords": [
+        "agricultura",
+        "agro",
+        "fazenda",
+        "pulverizador agrícola"
+      ]
+    },
+    "antiguidades_colecoes": {
+      "aliases": [
+        "antiguidades e coleções"
+      ],
+      "keywords": [
+        "antiguidade",
+        "colecionável",
+        "moeda antiga",
+        "item de coleção"
+      ]
+    },
+    "arte_papelaria": {
+      "aliases": [
+        "arte, papelaria e armarinho"
+      ],
+      "keywords": [
+        "tinta acrílica",
+        "aquarela",
+        "pincel artístico",
+        "linha de crochê"
+      ]
+    },
+    "festas_lembrancinhas": {
+      "aliases": [
+        "festas e lembrancinhas"
+      ],
+      "keywords": [
+        "balão decorativo",
+        "enfeite de festa",
+        "lembrancinha",
+        "decoração aniversário"
+      ]
+    },
+    "games": {
+      "aliases": [
+        "games"
+      ],
+      "keywords": [
+        "console",
+        "playstation",
+        "xbox",
+        "nintendo",
+        "jogo ps5"
+      ]
+    },
+    "instrumentos_musicais": {
+      "aliases": [
+        "instrumentos musicais"
+      ],
+      "keywords": [
+        "violão",
+        "guitarra",
+        "teclado musical",
+        "bateria musical",
+        "saxofone"
+      ]
+    },
+    "midia_cultura": {
+      "aliases": [
+        "música, filmes e seriados"
+      ],
+      "keywords": [
+        "blu ray",
+        "dvd filme",
+        "vinil",
+        "box série"
+      ]
+    },
+    "imoveis": {
+      "aliases": [
+        "imóveis"
+      ],
+      "keywords": [
+        "apartamento à venda",
+        "casa para alugar",
+        "imóvel"
+      ]
+    },
+    "servicos": {
+      "aliases": [
+        "serviços"
+      ],
+      "keywords": [
+        "serviço de manutenção",
+        "consultoria"
+      ]
+    },
+    "ingressos": {
+      "aliases": [
+        "ingressos"
+      ],
+      "keywords": [
+        "ingresso evento",
+        "ingresso show"
+      ]
+    }
+  }
+}

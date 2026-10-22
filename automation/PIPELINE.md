@@ -6,7 +6,8 @@
 - **Nenhuma publicação automática:** revisão de criativo e autorização no Pinterest continuam obrigatórias. Links `meli.la` não são inventados e SKUs do vendedor não viram IDs MLB.
 - **Local sem IA:** Pillow melhora apresentação e enquadramento; não é geração generativa.
 - **IA generativa opcional:** `--provider openai --allow-paid-ai` usa API de imagens com `OPENAI_API_KEY` (cobrança independente do ChatGPT). Nunca ativa sozinho.
-- **Design skills:** `automation/skills/*.md` alimentam as direções visuais; você pode editar os arquivos. Google Stitch é focado em design de interfaces; **não é** utilizado como ferramenta de edição fotográfica neste pipeline.
+- **Design skill + knowledge:** `automation/skills/SKILL.md` contém as instruções centrais; `automation/knowledge/core/*.md` define regras gerais; `automation/knowledge/categories/*.md` reúne os textos por nicho; `automation/knowledge/catalog/profiles.json` mapeia nomes e títulos. Google Stitch não é usado como editor fotográfico. A edição via IA carrega os arquivos locais em cada execução, sem exigir mudanças no Python.
+- **API oficial de categorias MLB:** `automation/knowledge/catalog/mlb_categories.json` foi preenchido usando `GET /sites/MLB/categories` com OAuth existente, e a atualização opcional é feita com `python automation/sync_categories.py --with-oauth`. Se a API retornar erro, mantém-se o último snapshot oficial; nunca se inventam IDs.
 
 ## Instalação
 ```powershell
@@ -50,7 +51,21 @@ python automation/garimpo.py review mlb1234567890 --title "Título real" --categ
 ```
 Os sinais de confirmação são decisões humanas: **o script não pode certificar licença nem comissões**.
 
-## 4. Stylize + Prepare
+## 4. Selecionar conhecimento e gerar criativo
+
+Antes da edição generativa, confira qual documento é escolhido automaticamente para o produto:
+```powershell
+python automation/garimpo.py knowledge RS1033-VHDC
+python automation/garimpo.py knowledge RS1033-VHDC --prompt
+```
+O refletor deve usar `knowledge/categories/iluminacao_jardim.md`, não uma instrução genérica de Casa. Em outros produtos, o código prioriza título especializado, depois nome oficial da categoria MLB quando disponível e, por fim, compatibilidade com `casa`, `tecnologia`, `organizacao` e `lifestyle`. A classificação é heurística e não substitui verificação do anúncio.
+
+Para atualizar apenas a árvore raiz oficial:
+```powershell
+python automation/sync_categories.py --with-oauth
+```
+Quando a API bloquear a consulta, o snapshot anterior é preservado. Para adicionar nicho, crie `.md` em `knowledge/categories` e atualize `knowledge/catalog/profiles.json`.
+
 ```powershell
 python automation/garimpo.py stylize mlb1234567890 --provider local
 python automation/garimpo.py prepare mlb1234567890

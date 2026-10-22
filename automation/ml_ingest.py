@@ -146,6 +146,7 @@ def get_product_metadata(url: str, *, token: str | None = None) -> dict:
     result = {
         "source_url": url, "resolved_url": url, "item_id": extract_item_id(url),
         "title": "", "summary": "", "image_url": "", "category": "",
+        "ml_category_id": "",
         "metadata_verified": False, "metadata_source": "unavailable", "warnings": [],
     }
     # Resolve redirects (including meli.la), without following links outside ML.
@@ -168,6 +169,9 @@ def get_product_metadata(url: str, *, token: str | None = None) -> dict:
         result["image_url"] = image_url or obj.get("secure_thumbnail") or ""
         result["metadata_verified"] = True
         result["metadata_source"] = "official_api"
+        category_id = obj.get("category_id")
+        if isinstance(category_id, str) and re.fullmatch(r"MLB[0-9]{2,12}", category_id):
+            result["ml_category_id"] = category_id
     elif obj and obj.get("status") != "active":
         result["warnings"].append("Anúncio não está ativo segundo a API; dados devem ser revisados.")
     if not result["metadata_verified"] and html:

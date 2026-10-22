@@ -1,1 +1,0 @@
-Direção de arte para casa e decoração: produto real em destaque, cenário residencial editorial, fundo discreto e atmosfera natural. Sem mudar formato, materiais, potência, escala, acessórios ou marca. Se iluminação for ilustrativa, não sugerir capacidade técnica não verificada.
