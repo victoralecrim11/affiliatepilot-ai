@@ -105,6 +105,30 @@ com as mesmas flags explícitas de consentimento e licença.
 
 ## Diagnosticar falhas no Qwen / Hugging Face antes de tentar nova geração
 
+### Ajuste Qwen para erros AppError sem diagnóstico
+
+O código-fonte do Space `Qwen/Qwen-Image-Edit` declara `rewrite_prompt=True`
+por padrão, utilizando internamente o DashScope para reformular prompts.
+Se esse serviço remoto falhar, pode resultar em `AppError` sem mensagem.
+Como o Garimpo já constrói o prompt com knowledge/skills, nosso adapter
+envia `rewrite_prompt=False` e `num_inference_steps=20` **somente** para
+`Qwen/Qwen-Image-Edit` na rota `/infer`. É uma medida de compatibilidade,
+não um contorno de cota nem garantia de geração. Outros Spaces preservam
+seus parâmetros-padrão.
+
+Para nova tentativa, confirme direitos comerciais da foto e licença do
+modelo, e aceite o envio público do conteúdo:
+
+```powershell
+python automation\garimpo.py hf-check --space Qwen/Qwen-Image-Edit --api-name /infer
+python automation\garimpo.py stylize RS1033-VHDC --provider hf-spaces --hf-space Qwen/Qwen-Image-Edit --hf-api-name /infer --allow-public-processing --confirm-model-license
+```
+
+Se `AppError` persistir, o problema poderá estar na cota de acesso anônimo,
+na instabilidade do ZeroGPU ou na execução do modelo. Não faça tentativas
+repetidas em loop; consulte a interface do Space e considere AI Horde
+ou o fallback local não generativo.
+
 O erro antigo `Space gratuito indisponível, cota esgotada ou assinatura da API incompatível`
 misturava causas distintas. A partir da correção, o erro é classificado sem exibir
 tokens nem respostas sensíveis. Para verificar apenas API e metadados **sem GPU**
