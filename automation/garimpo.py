@@ -577,7 +577,8 @@ def review_url_draft(pin: dict, *, title: str = "", category: str = "",
     pin["approval_sha256"] = ""
 
 
-def stylize_draft(pin: dict, out: Path, provider: str, *, allow_paid_ai: bool) -> Path:
+def stylize_draft(pin: dict, out: Path, provider: str, *, allow_paid_ai: bool,
+                 cloud_options: dict | None = None) -> Path:
     if pin["status"] not in {"draft", "prepared"}:
         raise GarimpoError("Não estilize um Pin aprovado/publicado.")
     try:
@@ -585,11 +586,12 @@ def stylize_draft(pin: dict, out: Path, provider: str, *, allow_paid_ai: bool) -
     except ModuleNotFoundError:
         from automation.creative_ai import stylize, CreativeError
     try:
-        target = stylize(pin, out / "styled", provider=provider, allow_paid_ai=allow_paid_ai)
+        target = stylize(pin, out / "styled", provider=provider,
+                         allow_paid_ai=allow_paid_ai, **(cloud_options or {}))
     except CreativeError as exc:
         raise GarimpoError(str(exc)) from exc
     pin["stylized_image_path"] = str(target)
-    pin["creative_provider"] = provider
+    pin["creative_provider"] = "local" if pin.pop("_used_local_fallback", False) else provider
     pin["status"] = "draft"
     pin["preview_path"] = ""
     pin["approval_sha256"] = ""
@@ -605,6 +607,20 @@ def missing_for_creative(pin: dict) -> list[str]:
     if pin.get("title", "").startswith("Dados pendentes:"):
         missing.append("título real")
     return missing
+
+
+def cloud_options_from_args(args: argparse.Namespace) -> dict:
+    """Cloud controls are passed only from explicit CLI arguments."""
+    return {
+        "allow_public_processing": args.allow_public_processing,
+        "confirm_model_license": args.confirm_model_license,
+        "horde_model": args.horde_model,
+        "hf_space": args.hf_space,
+        "hf_api_name": args.hf_api_name,
+        "hf_image_arg": args.hf_image_arg,
+        "hf_prompt_arg": args.hf_prompt_arg,
+        "fallback_local": args.fallback_local,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -626,8 +642,20 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Abre Central de Afiliados com Playwright para copiar link (login humano)")
         cmd.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
         if name == "auto":
-            cmd.add_argument("--provider", choices=["local", "openai", "none"], default="local")
+            cmd.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai", "none"], default="local")
             cmd.add_argument("--allow-paid-ai", action="store_true")
+        cmd.add_argument("--allow-public-processing", action="store_true",
+                         help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
+        cmd.add_argument("--confirm-model-license", action="store_true",
+                         help="Confirma licença comercial do modelo/Space escolhido")
+        cmd.add_argument("--horde-model", default="", help="Modelo AI Horde com licença conferida")
+        cmd.add_argument("--hf-space", default="", help="Space público no formato autor/nome")
+        cmd.add_argument("--hf-api-name", default="", help="Endpoint Gradio documentado, ex.: /edit")
+        cmd.add_argument("--hf-image-arg", default="image", help="Nome do parâmetro de imagem do Space")
+        cmd.add_argument("--hf-prompt-arg", default="prompt", help="Nome do parâmetro de prompt do Space")
+        cmd.add_argument("--fallback-local", action="store_true",
+                         help="Se nuvem falhar, usar tratamento Pillow sem IA")
+        if name == "auto":
             cmd.add_argument("--out", type=Path, default=DEFAULT_OUT)
     rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
     rev.add_argument("id")
@@ -646,8 +674,19 @@ def build_parser() -> argparse.ArgumentParser:
     confirm_link.add_argument("--confirm", action="store_true", required=True)
     st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
     st.add_argument("id")
-    st.add_argument("--provider", choices=["local", "openai"], default="local")
+    st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
     st.add_argument("--allow-paid-ai", action="store_true")
+    st.add_argument("--allow-public-processing", action="store_true",
+                     help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
+    st.add_argument("--confirm-model-license", action="store_true",
+                     help="Confirma licença comercial do modelo/Space escolhido")
+    st.add_argument("--horde-model", default="", help="Modelo AI Horde com licença conferida")
+    st.add_argument("--hf-space", default="", help="Space público no formato autor/nome")
+    st.add_argument("--hf-api-name", default="", help="Endpoint Gradio documentado, ex.: /edit")
+    st.add_argument("--hf-image-arg", default="image", help="Nome do parâmetro de imagem do Space")
+    st.add_argument("--hf-prompt-arg", default="prompt", help="Nome do parâmetro de prompt do Space")
+    st.add_argument("--fallback-local", action="store_true",
+                     help="Se nuvem falhar, usar tratamento Pillow sem IA")
     st.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ls = sub.add_parser("list", help="Exibe situação dos Pins")
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
@@ -712,7 +751,9 @@ def run(argv: list[str] | None = None) -> int:
                 print("Use review ID para complementar. Nenhum Pin foi publicado.")
             else:
                 if args.provider != "none":
-                    styled = stylize_draft(pin, args.out.resolve(), args.provider, allow_paid_ai=args.allow_paid_ai)
+                    styled = stylize_draft(pin, args.out.resolve(), args.provider,
+                                           allow_paid_ai=args.allow_paid_ai,
+                                           cloud_options=cloud_options_from_args(args))
                     print(f"Imagem estilizada ({args.provider}): {styled}")
                 path = prepare_image(pin, args.out.resolve())
                 pin["preview_path"] = str(path)
@@ -790,7 +831,9 @@ def run(argv: list[str] | None = None) -> int:
         )
         print(f"Revisão salva: {pin['id']}; agora execute stylize/prepare.")
     elif args.command == "stylize":
-        target = stylize_draft(pin, args.out.resolve(), args.provider, allow_paid_ai=args.allow_paid_ai)
+        target = stylize_draft(pin, args.out.resolve(), args.provider,
+                               allow_paid_ai=args.allow_paid_ai,
+                               cloud_options=cloud_options_from_args(args))
         print(f"Tratamento ({args.provider}) salvo em: {target}; execute prepare e revise.")
     elif args.command == "verify-ml":
         if pin["status"] not in {"draft", "prepared"}:

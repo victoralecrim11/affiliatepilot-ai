@@ -1,0 +1,2 @@
+-r requirements.txt
+gradio_client>=1.13,<3

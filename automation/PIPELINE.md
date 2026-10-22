@@ -1,5 +1,9 @@
 # Fluxo URL → rascunho → arte → aprovação (Garimpo da Vez)
 
+## Novos providers comunitários sem API paga
+
+Além de Pillow local e OpenAI opt-in, o CLI agora aceita `--provider aihorde` e `--provider hf-spaces` em `stylize` e `auto`. **Não são gratuitos ilimitados:** filas e cotas podem impedir o uso. Exigem `--allow-public-processing` (foto e prompt podem ser vistos por terceiros), `--confirm-model-license` (licença comercial e fotografia verificadas), configuração de modelo ou Space/endpoint e revisão humana. Para tolerar indisponibilidade: `--fallback-local`, que deixa registrado o uso real de Pillow. Guia e comandos: [CLOUD_IMAGE_PROVIDERS.md](CLOUD_IMAGE_PROVIDERS.md).
+
 ## O que é automático e o que NÃO é
 - **Autônomo por URL, quando disponível:** identifica MLB de anúncio individual, consulta `GET /items/{id}` via API oficial, tenta metadados públicos como fallback **não verificado**, sugere categoria, cria rascunho e gera arte com imagem autorizada.
 - **Requer revisão:** foto/licença comercial, título/categoria, elegibilidade do link de afiliado e dados ausentes. Um `HTTP 403` não será contornado nem tratado como verificação bem-sucedida.
