@@ -1,7 +1,7 @@
-"""Estilização de imagem: local gratuita (NÃO IA) ou OpenAI Images Edit (paga).
+"""Imagens: Pillow local, serviços comunitários opcionais, OpenAI paga opt-in.
 
-Nenhuma chamada à IA ocorre sem --provider openai --allow-paid-ai e chave.
-Não altera o produto ou a fila publicada; saída requer revisão humana.
+Serviços externos requerem consentimento, modelo licenciado e revisão humana.
+Nenhuma geração publica Pins ou aprova conteúdo automaticamente.
 """
 from __future__ import annotations
 
@@ -116,21 +116,61 @@ def _openai_edit(pin: dict, target: Path, *, api_key: str | None = None):
 
 
 def stylize(pin: dict, out_dir: Path, *, provider: str = "local",
-            allow_paid_ai: bool = False, api_key: str | None = None) -> Path:
-    if provider not in ("local", "openai"):
-        raise CreativeError("Provider válido: local (gratuito, sem IA) ou openai (IA paga)")
-    if not pin.get("image_license_confirmed", True):
-        raise CreativeError("É preciso confirmar direitos de uso da imagem antes de estilizar.")
+            allow_paid_ai: bool = False, api_key: str | None = None,
+            allow_public_processing: bool = False, confirm_model_license: bool = False,
+            horde_model: str = "", hf_space: str = "", hf_api_name: str = "",
+            hf_image_arg: str = "image", hf_prompt_arg: str = "prompt",
+            fallback_local: bool = False) -> Path:
+    if provider not in ("local", "openai", "aihorde", "hf-spaces"):
+        raise CreativeError("Provider válido: local, aihorde, hf-spaces ou openai (pago)")
+    # Older imported CSVs are accepted only if their input recorded authorization.
+    if pin.get("image_license_confirmed") is not True:
+        raise CreativeError("Confirme direitos de uso comercial da imagem antes de estilizar.")
     if provider == "openai" and not allow_paid_ai:
         raise CreativeError("Chamadas pagas requerem a opção explícita --allow-paid-ai.")
+    if provider in ("aihorde", "hf-spaces"):
+        try:
+            from free_image_providers import (
+                validate_consent, FreeProviderError, horde_edit, hf_spaces_edit
+            )
+        except ModuleNotFoundError:
+            from automation.free_image_providers import (
+                validate_consent, FreeProviderError, horde_edit, hf_spaces_edit
+            )
+        try:
+            validate_consent(public_processing=allow_public_processing,
+                             model_license=confirm_model_license)
+        except FreeProviderError as exc:
+            raise CreativeError(str(exc)) from exc
+
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{pin['id']}-styled.png"
     tmp = out_dir / f".{pin['id']}-styled.tmp.png"
+    pin.pop("_used_local_fallback", None)
     try:
-        if provider == "openai":
-            _openai_edit(pin, tmp, api_key=api_key)
-        else:
+        try:
+            if provider == "openai":
+                _openai_edit(pin, tmp, api_key=api_key)
+            elif provider == "local":
+                _local_enhance(pin, tmp)
+            else:
+                prompt = make_prompt(pin)
+                if provider == "aihorde":
+                    horde_edit(pin, tmp, prompt=prompt,
+                               model=horde_model or os.environ.get("AIHORDE_MODEL", "").strip())
+                else:
+                    hf_spaces_edit(
+                        pin, tmp, prompt=prompt,
+                        space=hf_space or os.environ.get("HF_SPACE_ID", "").strip(),
+                        api_name=hf_api_name or os.environ.get("HF_SPACE_API_NAME", "").strip(),
+                        image_arg=hf_image_arg, prompt_arg=hf_prompt_arg
+                    )
+        except FreeProviderError as exc:
+            if not fallback_local:
+                raise CreativeError(str(exc)) from exc
+            print(f"ATENÇÃO: IA comunitária indisponível ({exc}). Tratamento local sem IA.")
             _local_enhance(pin, tmp)
+            pin["_used_local_fallback"] = True
         tmp.replace(target)
         return target
     finally:
