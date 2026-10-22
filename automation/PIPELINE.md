@@ -55,6 +55,29 @@ python automation/garimpo.py review mlb1234567890 --title "Título real" --categ
 ```
 Os sinais de confirmação são decisões humanas: **o script não pode certificar licença nem comissões**.
 
+### Produtos antigos importados antes dos campos de licença
+
+Se `stylize` retornar `Confirme direitos de uso comercial da imagem antes de estilizar`,
+consulte `python automation/garimpo.py show ID_LOCAL`. Registros antigos podem não
+conter `image_license_confirmed`. **Não marque autorização automaticamente.**
+Se você realmente possui permissão de uso comercial da foto, confirme explicitamente:
+
+```powershell
+python automation/garimpo.py confirm-image-rights RS1033-VHDC --confirm
+```
+
+Se não possuir autorização da foto anterior, obtenha uma imagem que tenha direito de
+usar e substitua por uma fonte permitida antes de prosseguir:
+
+```powershell
+python automation/garimpo.py confirm-image-rights RS1033-VHDC --image-file "C:\\caminho\\imagem-autorizada.webp" --confirm
+```
+
+Esse comando só funciona em `draft`/`prepared`, valida a existência e formato da
+imagem e **invalida o preview anterior**, exigindo executar novamente `stylize`
+e `prepare`. Um download de foto de anúncio não comprova autorização comercial.
+Nenhuma alteração é feita em Pins já aprovados ou publicados.
+
 ## 4. Selecionar conhecimento e gerar criativo
 
 Antes da edição generativa, confira qual documento é escolhido automaticamente para o produto:

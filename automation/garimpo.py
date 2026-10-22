@@ -672,6 +672,11 @@ def build_parser() -> argparse.ArgumentParser:
     confirm_link = sub.add_parser("confirm-link", help="Confirma após revisão humana que o link pertence ao produto")
     confirm_link.add_argument("id")
     confirm_link.add_argument("--confirm", action="store_true", required=True)
+    rights = sub.add_parser("confirm-image-rights", help="Registra autorização comercial da foto em um rascunho antigo")
+    rights.add_argument("id")
+    rights.add_argument("--image-file", default="", help="Opcional: substituir pela imagem autorizada")
+    rights.add_argument("--confirm", action="store_true", required=True,
+                        help="Declara que você possui direitos de uso comercial desta imagem")
     st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
     st.add_argument("id")
     st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
@@ -821,6 +826,22 @@ def run(argv: list[str] | None = None) -> int:
         pin["affiliate_url_confirmed"] = True
         pin["affiliate_link_pending"] = False
         print("Link de afiliado confirmado. Ainda não foi publicado.")
+    elif args.command == "confirm-image-rights":
+        if pin["status"] not in {"draft", "prepared"} or not args.confirm:
+            raise GarimpoError("A confirmação só é permitida em Pins não aprovados, com --confirm.")
+        source = Path(args.image_file).expanduser().resolve() if args.image_file else Path(pin.get("image_path") or "")
+        if not source.is_file() or source.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+            raise GarimpoError("Imagem autorizada não encontrada; use --image-file com um arquivo real.")
+        if source.stat().st_size > 18 * 1024 * 1024:
+            raise GarimpoError("Imagem acima do limite de 18 MiB.")
+        pin["image_path"] = str(source.resolve())
+        pin["image_license_confirmed"] = True
+        pin["status"] = "draft"
+        pin["preview_path"] = ""
+        pin["stylized_image_path"] = ""
+        pin["approval_sha256"] = ""
+        pin["board_id"] = ""
+        print("Confirmação de uso comercial registrada. Execute stylize e prepare antes de aprovar; nenhum Pin foi publicado.")
     elif args.command == "review":
         review_url_draft(
             pin, title=args.title, category=args.category, affiliate_url=args.affiliate_url,
