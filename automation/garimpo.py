@@ -655,6 +655,7 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--hf-prompt-arg", default="prompt", help="Nome do parâmetro de prompt do Space")
         cmd.add_argument("--fallback-local", action="store_true",
                          help="Se nuvem falhar, usar tratamento Pillow sem IA")
+        if name == "auto":
             cmd.add_argument("--out", type=Path, default=DEFAULT_OUT)
     rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
     rev.add_argument("id")
