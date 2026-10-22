@@ -102,6 +102,47 @@ Para produto novo, use ingest-url, review e affiliate-link conforme
 PIPELINE.md. O comando auto também aceita --provider aihorde ou hf-spaces,
 com as mesmas flags explícitas de consentimento e licença.
 
+
+## Diagnosticar falhas no Qwen / Hugging Face antes de tentar nova geração
+
+O erro antigo `Space gratuito indisponível, cota esgotada ou assinatura da API incompatível`
+misturava causas distintas. A partir da correção, o erro é classificado sem exibir
+tokens nem respostas sensíveis. Para verificar apenas API e metadados **sem GPU**
+e **sem enviar imagem**, execute:
+
+```powershell
+python automation\garimpo.py hf-check --space Qwen/Qwen-Image-Edit --api-name /infer
+```
+
+Resultado esperado para a API observada em 22/10/2026: `stage=RUNNING`,
+`hardware=zero-a10g`, `compatible=true`, parâmetros obrigatórios `image` e
+`prompt`. Isso **não verifica cota, autorização ou geração real**; apenas
+confirma que os parâmetros continuam compatíveis.
+
+Conforme documentação ZeroGPU, solicitações anônimas dispõem de cerca de
+**2 minutos de GPU por dia** e têm prioridade baixa; a interface autenticada
+com conta Free possui cotas diferentes (5 minutos), mas este adapter envia
+`token=False` para evitar consumo de créditos ou cobrança automatizada.
+Acesse diretamente a interface gratuita no navegador para verificar se ela
+exige login ou retorna erro de quota. **Não altere o script para enviar
+seus tokens automaticamente**; contas elegíveis podem ter cobrança adicional
+depois da cota gratuita.
+
+Se aparecer:
+- `limite`/`ZeroGPU`: há indicação de cota/uso anônimo esgotado;
+- `autenticação`: o Space não permitiu a sessão anônima;
+- `assinatura`: interface/rota/parâmetros podem ter mudado;
+- `falha remota`: o serviço pode ocultar o erro original; não atribuir a cota
+  sem evidência.
+
+Alternativas: tentar novamente após o reinício de cota, usar outro Space
+público de edição com licença e API compatíveis, ou o provider
+`aihorde` com modelo comercialmente permitido. `--fallback-local`
+aplica apenas Pillow, **não é IA generativa**.
+
+Fontes: https://huggingface.co/docs/hub/spaces-zerogpu
+e https://huggingface.co/docs/hub/spaces-api-endpoints
+
 ## Fontes oficiais consultadas (outubro/2026)
 
 - https://aihorde.net/docs/image/settings/img2img/
