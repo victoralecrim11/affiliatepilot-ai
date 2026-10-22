@@ -675,17 +675,17 @@ def build_parser() -> argparse.ArgumentParser:
     st.add_argument("id")
     st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
     st.add_argument("--allow-paid-ai", action="store_true")
-        st.add_argument("--allow-public-processing", action="store_true",
-                         help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
-        st.add_argument("--confirm-model-license", action="store_true",
-                         help="Confirma licença comercial do modelo/Space escolhido")
-        st.add_argument("--horde-model", default="", help="Modelo AI Horde com licença conferida")
-        st.add_argument("--hf-space", default="", help="Space público no formato autor/nome")
-        st.add_argument("--hf-api-name", default="", help="Endpoint Gradio documentado, ex.: /edit")
-        st.add_argument("--hf-image-arg", default="image", help="Nome do parâmetro de imagem do Space")
-        st.add_argument("--hf-prompt-arg", default="prompt", help="Nome do parâmetro de prompt do Space")
-        st.add_argument("--fallback-local", action="store_true",
-                         help="Se nuvem falhar, usar tratamento Pillow sem IA")
+    st.add_argument("--allow-public-processing", action="store_true",
+                     help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
+    st.add_argument("--confirm-model-license", action="store_true",
+                     help="Confirma licença comercial do modelo/Space escolhido")
+    st.add_argument("--horde-model", default="", help="Modelo AI Horde com licença conferida")
+    st.add_argument("--hf-space", default="", help="Space público no formato autor/nome")
+    st.add_argument("--hf-api-name", default="", help="Endpoint Gradio documentado, ex.: /edit")
+    st.add_argument("--hf-image-arg", default="image", help="Nome do parâmetro de imagem do Space")
+    st.add_argument("--hf-prompt-arg", default="prompt", help="Nome do parâmetro de prompt do Space")
+    st.add_argument("--fallback-local", action="store_true",
+                     help="Se nuvem falhar, usar tratamento Pillow sem IA")
     st.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ls = sub.add_parser("list", help="Exibe situação dos Pins")
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
