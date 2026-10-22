@@ -231,10 +231,14 @@ def hf_spaces_edit(pin: dict, target: Path, *, prompt: str, space: str, api_name
     # Supported Gradio client versions accept token=False, suppress cached credentials.
     try:
         client = Client(space, token=False, verbose=False)
-        response = client.predict(
-            api_name=api_name, **{image_arg: handle_file(str(Path(pin["image_path"]).resolve())),
-                                  prompt_arg: prompt[:4000]}
-        )
+        inputs = {image_arg: handle_file(str(Path(pin["image_path"]).resolve())),
+                  prompt_arg: prompt[:4000]}
+        if space == "Qwen/Qwen-Image-Edit" and api_name == "/infer":
+            # Qwen Space rewrites prompts via an unrelated DashScope service by
+            # default. Our knowledge pipeline already prepares the instructions.
+            # Avoid this fragile external dependency and keep ZeroGPU work bounded.
+            inputs.update(rewrite_prompt=False, num_inference_steps=20)
+        response = client.predict(api_name=api_name, **inputs)
         output = _space_output_path(response)
         if output.stat().st_size > MAX_RESULT:
             raise FreeProviderError("Space retornou imagem grande demais")

@@ -157,6 +157,37 @@ class FreeCloudTests(unittest.TestCase):
         self.assertEqual(captured["kwargs"]["photo"], str(Path(self.pin["image_path"]).resolve()))
         self.assertTrue((self.root/"hf-out.png").exists())
 
+    def test_qwen_preset_disables_dashscope_rewrite_and_reduces_steps(self):
+        """Qwen prompt rewriting invokes a separate API and can fail remotely."""
+        from unittest.mock import patch
+        import sys
+        import types
+        recorded = {}
+        test_root = self.root
+
+        class FakeClient:
+            def __init__(self, space, *, token, verbose):
+                recorded.update(space=space, token=token)
+
+            def predict(self, *, api_name, **kwargs):
+                recorded.update(api_name=api_name, kwargs=kwargs)
+                output = test_root / "generated-qwen.png"
+                output.write_bytes(sample_png())
+                return str(output), 42
+
+        fake = types.SimpleNamespace(Client=FakeClient,
+                                     handle_file=lambda value: value)
+        with patch.dict(sys.modules, {"gradio_client": fake}):
+            cloud.hf_spaces_edit(
+                self.pin, self.root / "qwen-out.png",
+                prompt="Preserve the physical product and change the background",
+                space="Qwen/Qwen-Image-Edit", api_name="/infer"
+            )
+        self.assertEqual(recorded["token"], False)
+        self.assertEqual(recorded["kwargs"]["rewrite_prompt"], False)
+        self.assertEqual(recorded["kwargs"]["num_inference_steps"], 20)
+        self.assertTrue((self.root / "qwen-out.png").is_file())
+
     def test_cli_auto_and_stylize_accept_free_provider_flags(self):
         parser = garimpo.build_parser()
         for command in ("stylize", "auto"):
