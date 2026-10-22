@@ -1,0 +1,1 @@
+Direção de arte lifestyle: editorial acolhedor, luz suave e foco no produto real. Não modificar aparência do objeto nem adicionar adereços vendidos separadamente.
