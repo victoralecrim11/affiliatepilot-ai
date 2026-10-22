@@ -42,6 +42,34 @@ Para fallback EXPLÍCITO sem IA:
 
 Chave pessoal AIHORDE_API_KEY é opcional; não a comite. Com uso anônimo o compartilhamento pode ser compulsório.
 
+## Space verificado para começar — Qwen-Image-Edit
+
+Em 22/10/2026, o endpoint público de Qwen/Qwen-Image-Edit respondeu à inspeção
+real do Gradio com `/infer`, parâmetros obrigatórios `image` e `prompt`
+e retorno de imagem. O modelo Qwen/Qwen-Image-Edit declara Apache 2.0
+(modelo e licença podem mudar). O Space estava marcado como ZeroGPU.
+A inspeção não gerou imagem, não utilizou GPU nem consumiu cotas.
+Nenhuma disponibilidade futura, elegibilidade de uso comercial da sua foto
+ou qualidade de geração pode ser garantida.
+
+No PowerShell, para usar **um Pin preparado com imagem autorizada**:
+
+    $env:HF_SPACE_ID = "Qwen/Qwen-Image-Edit"
+    $env:HF_SPACE_API_NAME = "/infer"
+
+    python automation\garimpo.py knowledge RS1033-VHDC --prompt
+    python automation\garimpo.py stylize RS1033-VHDC --provider hf-spaces --allow-public-processing --confirm-model-license --fallback-local
+    python automation\garimpo.py prepare RS1033-VHDC
+    Start-Process .\automation\out\RS1033-VHDC.jpg
+
+Com `--fallback-local`, indisponibilidade do Space resulta em tratamento
+Pillow **sem IA**, claramente informado. Remova a flag para testar apenas IA
+gratuita e receber o erro exato se não houver cota. A foto e o prompt serão
+enviados ao Space público; só execute com direitos e consentimento.
+
+Modelo: https://huggingface.co/Qwen/Qwen-Image-Edit
+Space: https://huggingface.co/spaces/Qwen/Qwen-Image-Edit
+
 ## Hugging Face Space público
 
 Identifique um Space GRADIO público com edição de imagem, verifique licença
