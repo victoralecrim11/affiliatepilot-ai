@@ -242,7 +242,8 @@ def hf_spaces_edit(pin: dict, target: Path, *, prompt: str, space: str, api_name
     except FreeProviderError:
         raise
     except Exception as exc:
-        raise FreeProviderError(
-            "Space gratuito indisponível, cota esgotada ou assinatura da API incompatível. "
-            "Confira 'Use via API' no Space e os nomes de parâmetros."
-        ) from exc
+        try:
+            from hf_diagnostics import classify_hf_error
+        except ModuleNotFoundError:
+            from automation.hf_diagnostics import classify_hf_error
+        raise FreeProviderError(classify_hf_error(exc)) from exc

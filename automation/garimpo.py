@@ -717,6 +717,11 @@ def build_parser() -> argparse.ArgumentParser:
     reset.add_argument("id")
     reset.add_argument("--confirmed-not-published", action="store_true", required=True)
     sub.add_parser("boards", help="Lista pastas acessíveis pelo token Pinterest (somente leitura)")
+    check = sub.add_parser("hf-check", help="Inspeciona Space/endpoint Gradio sem imagem nem cota de GPU")
+    check.add_argument("--space", default="", help="Space (autor/nome); padrão HF_SPACE_ID")
+    check.add_argument("--api-name", default="", help="Endpoint; padrão HF_SPACE_API_NAME")
+    check.add_argument("--image-arg", default="image")
+    check.add_argument("--prompt-arg", default="prompt")
     return parser
 
 
@@ -767,6 +772,24 @@ def run(argv: list[str] | None = None) -> int:
             state = load_store(args.store)
             state["pins"][pin["id"]] = pin
             save_store(args.store, state)
+        return 0
+    if args.command == "hf-check":
+        try:
+            from hf_diagnostics import inspect_space, HFDiagnosticError
+        except ModuleNotFoundError:
+            from automation.hf_diagnostics import inspect_space, HFDiagnosticError
+        try:
+            diagnosis = inspect_space(
+                args.space or os.environ.get("HF_SPACE_ID", ""),
+                args.api_name or os.environ.get("HF_SPACE_API_NAME", ""),
+                image_arg=args.image_arg, prompt_arg=args.prompt_arg,
+            )
+        except HFDiagnosticError as exc:
+            raise GarimpoError(str(exc)) from exc
+        print(json.dumps(diagnosis, ensure_ascii=False, indent=2))
+        print("Somente leitura: nenhuma imagem enviada e nenhuma GPU usada.")
+        if not diagnosis.get("compatible"):
+            raise GarimpoError("Space não compatível com os parâmetros configurados.")
         return 0
     if args.command == "boards":
         resp = pinterest_call("/boards")
