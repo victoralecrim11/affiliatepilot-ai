@@ -1,5 +1,7 @@
 # Garimpo da Vez — Assistente de Pins (Python)
 
+**Providers gratuitos remotos (opcionais):** AI Horde (img2img) e Hugging Face Spaces públicos. Sem GPU local e sem API paga, mas exigem consentimento explícito para enviar imagens, licença comercial do modelo conferida e revisão da imagem gerada. Veja [CLOUD_IMAGE_PROVIDERS.md](CLOUD_IMAGE_PROVIDERS.md). Exemplo: `stylize ID --provider aihorde --allow-public-processing --confirm-model-license` com `AIHORDE_MODEL` configurado; `hf-spaces` precisa de Space/endpoint compatíveis. Ambos podem ficar indisponíveis e nunca publicam automaticamente.
+
 Ferramenta local para organizar produtos **reais** do programa de afiliados do Mercado Livre, preparar Pins verticais com a identidade Garimpo da Vez, revisar cada criação e publicar **um Pin por ação explícita** via API oficial do Pinterest.
 
 **Novo pipeline por URL + auxílio do navegador + edição visual opcional:** consulte [PIPELINE.md](PIPELINE.md), com os comandos `ingest-url`, `affiliate-link`, `review`, `stylize`, `auto`, `knowledge` e `confirm-link`. O fluxo exige revisão de direitos da imagem, dados do produto e vínculo de afiliado. A etapa `local` é tratamento gráfico **não generativo**; a edição com IA é opcional e pode ser cobrada.
