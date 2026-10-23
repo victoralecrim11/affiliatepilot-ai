@@ -216,6 +216,7 @@ def _summary_xml() -> bytes:
             for cell in row.findall(_q("c")):
                 cell.set("s", "1")
     row5 = ET.SubElement(data, _q("row"), {"r": "5", "ht": "32", "customHeight": "1"})
+    data.insert(3, row5)  # Excel requires ascending <row r=...> order.
     for col, formula in [
         (1, "COUNTA(Produtos!$A$5:$A$25004)"),
         (4, 'COUNTIF(Produtos!$K$5:$K$25004,"Sim")'),
@@ -389,3 +390,100 @@ def read_products(path: Path) -> list[dict]:
         if any(values.values()):
             parsed.append(values)
     return parsed
+
+
+def import_excel_drafts(xlsx_path: Path, store_path: Path) -> int:
+    """Import only NEW records; do not trust confirmations or overwrite approvals.
+
+    Importing the generated snapshot itself is idempotent (zero new rows).
+    For a manually filled sheet, IDs may be absent and will be derived from
+    its verified item ID or a stable local hash, never guessed MLB numbers.
+    """
+    try:
+        from garimpo import (load_store, save_store, ensure_https_affiliate_link,
+                             GarimpoError, DISCLOSURE, CATEGORIES, now_iso)
+    except ModuleNotFoundError:
+        from automation.garimpo import (load_store, save_store, ensure_https_affiliate_link,
+                                        GarimpoError, DISCLOSURE, CATEGORIES, now_iso)
+    try:
+        from ml_ingest import validate_url
+    except ModuleNotFoundError:
+        from automation.ml_ingest import validate_url
+
+    rows = read_products(xlsx_path.resolve())
+    state = load_store(store_path)
+    created = {}
+    for pos, row in enumerate(rows, 1):
+        title = " ".join(row["Produto"].split())
+        if not 5 <= len(title) <= 100:
+            raise ExcelCatalogError(f"Linha de produto {pos}: informe título com 5 a 100 caracteres.")
+        item_id = row["ID anúncio MLB"].strip().upper()
+        if item_id and not re.fullmatch(r"MLB[0-9]{6,18}", item_id):
+            raise ExcelCatalogError(f"Linha de produto {pos}: ID de anúncio MLB inválido.")
+        category = row["Categoria"].strip().lower()
+        if category not in CATEGORIES:
+            raise ExcelCatalogError(
+                f"Linha de produto {pos}: categoria deve ser "
+                + ", ".join(CATEGORIES)
+            )
+        category_id = row["Categoria MLB"].strip().upper()
+        if category_id and not re.fullmatch(r"MLB[0-9]{2,12}", category_id):
+            raise ExcelCatalogError(f"Linha de produto {pos}: ID de categoria oficial inválido.")
+        source_url = row["URL anúncio"].strip()
+        if source_url:
+            try:
+                source_url = validate_url(source_url)
+            except ValueError as exc:
+                raise ExcelCatalogError(f"Linha de produto {pos}: URL de anúncio inválida.") from exc
+        affiliate = row["Link afiliado"].strip()
+        if affiliate:
+            try:
+                affiliate = ensure_https_affiliate_link(affiliate)
+            except GarimpoError as exc:
+                raise ExcelCatalogError(f"Linha de produto {pos}: link afiliado inválido.") from exc
+        local_id = row["ID local"].strip() or (
+            item_id.lower() if item_id else
+            "excel-" + hashlib.sha256(
+                (source_url + "|" + title).encode("utf-8")
+            ).hexdigest()[:12]
+        )
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,49}", local_id):
+            raise ExcelCatalogError(f"Linha de produto {pos}: ID local inválido.")
+        # Never use an alternate local ID to duplicate a registered MLB item.
+        if local_id in state["pins"] or local_id in created:
+            continue
+        if item_id and any(p.get("item_id") == item_id for p in
+                           list(state["pins"].values()) + list(created.values())):
+            continue
+        image = row["Imagem original"].strip()
+        if image:
+            file = Path(image).expanduser()
+            if not file.is_absolute():
+                file = xlsx_path.parent / file
+            if file.suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp"):
+                raise ExcelCatalogError(f"Linha de produto {pos}: imagem inválida.")
+            image = str(file.resolve())
+        summary = (row["Resumo / observações"] or
+                   "Confira detalhes e condições no anúncio original.").strip()[:560]
+        pin = {
+            "id": local_id, "item_id": item_id, "ml_category_id": category_id,
+            "title": title, "description": summary + "\n\n" + DISCLOSURE,
+            "category": category, "source_url": source_url,
+            "resolved_url": source_url, "image_path": image,
+            "image_license_confirmed": False,
+            "affiliate_url": affiliate, "affiliate_url_confirmed": False,
+            "affiliate_link_pending": bool(affiliate),
+            "affiliate_link_source": "excel_unconfirmed" if affiliate else "",
+            "affiliate_confirmed_at": "",
+            "title_confirmed": False, "category_confirmed": False,
+            "created_by_url": True, "created_at": now_iso(), "status": "draft",
+            "preview_path": "", "stylized_image_path": "", "board_id": "",
+            "approval_sha256": "", "pin_id": "",
+            "notes": ["Importado do Excel: confirme título, categoria, foto e "
+                      "link individual obtido na Central de Afiliados."],
+        }
+        created[local_id] = pin
+    if created:
+        state["pins"].update(created)
+        save_store(store_path, state)
+    return len(created)
