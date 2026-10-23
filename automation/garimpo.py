@@ -690,6 +690,8 @@ def build_parser() -> argparse.ArgumentParser:
     ximp.add_argument("xlsx", type=Path)
     xls = sub.add_parser("excel-sync", help="Cria/atualiza catálogo Excel da fila local")
     xls.add_argument("--out", type=Path, default=None, help="Destino opcional .xlsx")
+    xls.add_argument("--force", action="store_true",
+                     help="Sobrescreve Excel editado externamente APÓS revisar as alterações")
     for name in ("ingest-url", "auto"):
         cmd = sub.add_parser(name, help="Obtém dados permitidos do anúncio via URL; auto também prepara um Pin local")
         cmd.add_argument("url", help="URL HTTPS de produto Mercado Livre ou link curto meli.la")
@@ -845,7 +847,8 @@ def run(argv: list[str] | None = None) -> int:
             from automation.excel_catalog import sync_catalog, ExcelCatalogError
         try:
             target = sync_catalog(args.store, load_store(args.store),
-                                  dest=args.out.resolve() if args.out else None)
+                                  dest=args.out.resolve() if args.out else None,
+                                  force=args.force)
         except ExcelCatalogError as exc:
             raise GarimpoError(str(exc)) from exc
         print(f"Catálogo Excel atualizado: {target}")
