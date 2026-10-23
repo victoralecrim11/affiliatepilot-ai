@@ -984,7 +984,7 @@ def run(argv: list[str] | None = None) -> int:
             from automation.pinterest_business import export_business, validate_handoff, BusinessExportError
 
         if (args.id and (args.latest or args.choose)) or (args.latest and args.choose):
-            raise GarimpoError("Escolha uma opção: ID explícito, --choose ou --latest.")
+            raise GarimpoError("Use ID explícito OU --latest OU --choose (não combine opções).")
         if args.id:
             candidates = [get_pin(state, args.id)]
         elif args.choose:
