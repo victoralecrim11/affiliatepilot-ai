@@ -584,6 +584,8 @@ def review_url_draft(pin: dict, *, title: str = "", category: str = "",
         pin["category_confirmed"] = False
     if affiliate_url:
         pin["affiliate_url"] = ensure_https_affiliate_link(affiliate_url)
+        pin["affiliate_link_source"] = "mercadolivre_central_manual"
+        pin["affiliate_confirmed_at"] = ""
         pin["affiliate_url_confirmed"] = False
     if image_file:
         source = Path(image_file).expanduser().resolve()
@@ -606,6 +608,7 @@ def review_url_draft(pin: dict, *, title: str = "", category: str = "",
         if not pin["affiliate_url"]:
             raise GarimpoError("Informe --affiliate-url gerado no Portal do Afiliado.")
         pin["affiliate_url_confirmed"] = True
+        pin["affiliate_confirmed_at"] = now_iso()
         pin["affiliate_link_pending"] = False
     if confirm_title:
         if pin["title"].startswith("Dados pendentes:"):
@@ -803,7 +806,9 @@ def run(argv: list[str] | None = None) -> int:
         for note in pin["notes"]:
             print("ATENÇÃO:", note)
         if args.affiliate_browser:
+            pin["affiliate_link_source"] = "mercadolivre_central_browser"
             pin["affiliate_link_pending"] = True
+            pin["affiliate_confirmed_at"] = ""
             pin["affiliate_url_confirmed"] = False
             state = load_store(args.store)
             state["pins"][pin["id"]] = pin
