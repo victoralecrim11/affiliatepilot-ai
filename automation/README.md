@@ -1,5 +1,9 @@
 # Garimpo da Vez — Assistente de Pins (Python)
 
+## Catálogo Excel automático (novo padrão; CSV é legado)
+
+O sistema agora mantém **automation/data/produtos.xlsx** automaticamente a partir da fila local: cada anúncio descoberto, revisão, link individual de afiliado confirmado ou criativo preparado atualiza a planilha, sem digitar ID nem preencher CSV. O Excel tem abas **Produtos**, **Resumo** e **Categorias oficiais**. Para gerar a planilha dos produtos já existentes, use `python automation/garimpo.py excel-sync`. Para importar novos registros de uma planilha padrão, use `python automation/garimpo.py import-xlsx minha-planilha.xlsx`. A fila JSON continua responsável por aprovações e publicação; o Excel é um catálogo sincronizado. Alterações manuais são detectadas e preservadas, com reconciliação explícita via `excel-sync --force`. Consulte [EXCEL_CATALOG.md](EXCEL_CATALOG.md) para detalhes e segurança.
+
 ## Descoberta de produtos sem IDs manuais
 
 O novo comando `python automation/garimpo.py ml-discover` apresenta categorias e subcategorias oficiais do Mercado Livre e tenta buscar anúncios reais. Basta escolher pelo **número**; o anúncio é importado como rascunho, sem link de afiliado inventado. Se a API de busca responder HTTP 403, continue copiando a URL real do anúncio para `ingest-url`. Os comandos por produto (`prepare`, `stylize`, `review`, `affiliate-link`, `show`, etc.) agora aceitam ID opcional e oferecem menu numerado e filtros `--choose-category`/`--choose-search`.
