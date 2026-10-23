@@ -1,5 +1,16 @@
 # Garimpo da Vez — Assistente de Pins (Python)
 
+## Novo: Pins naturais + publicação manual no Pinterest Business
+
+O modo padrão de `prepare` agora é **editorial**: foto vertical 2:3 sem cabeçalho, título nem logo sobrepostos. O estilo antigo continua opt-in com `--style branded`. Se a imagem estilizada antiga tiver banner, use `--source original` e uma foto original autorizada. O provider Pillow local agora somente ajusta cor e contraste, sem moldura publicitária.
+
+```powershell
+python automation/garimpo.py prepare RS1033-VHDC --style editorial --source original
+python automation/garimpo.py export-business RS1033-VHDC
+```
+
+O segundo comando gera **apenas arquivos locais** em `automation/out/business/ID/`: `pin.jpg`, `fields.json`, `copy.txt` e `checklist.md`. Preencha os campos da tela Pinterest Business manualmente e escolha a pasta, indicação de IA (quando aplicável) e data de publicação. Cada pacote usa o link de afiliado **confirmado daquele item**. Links de comissão vêm do Compartilhar/Gerador de Links da Central de Afiliados; a API ML é de consulta, não geração de links. Leia [EDITORIAL_BUSINESS.md](EDITORIAL_BUSINESS.md) para o fluxo completo.
+
 **Providers gratuitos remotos (opcionais):** AI Horde (img2img) e Hugging Face Spaces públicos. Sem GPU local e sem API paga, mas exigem consentimento explícito para enviar imagens, licença comercial do modelo conferida e revisão da imagem gerada. Veja [CLOUD_IMAGE_PROVIDERS.md](CLOUD_IMAGE_PROVIDERS.md). Exemplo: `stylize ID --provider aihorde --allow-public-processing --confirm-model-license` com `AIHORDE_MODEL` configurado; `hf-spaces` precisa de Space/endpoint compatíveis. Ambos podem ficar indisponíveis e nunca publicam automaticamente.
 
 Ferramenta local para organizar produtos **reais** do programa de afiliados do Mercado Livre, preparar Pins verticais com a identidade Garimpo da Vez, revisar cada criação e publicar **um Pin por ação explícita** via API oficial do Pinterest.

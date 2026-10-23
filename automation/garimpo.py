@@ -99,6 +99,8 @@ def validate_row(row: dict[str, str], csv_dir: Path) -> dict:
         "category": cat,
         "affiliate_url": ensure_https_affiliate_link(row["affiliate_url"]),
         "affiliate_url_confirmed": True,
+        "affiliate_link_source": "csv_manual",
+        "affiliate_confirmed_at": now_iso(),
         "image_license_confirmed": True,
         "image_path": str(image),
         "status": "draft",
@@ -305,47 +307,85 @@ def text_lines(text: str, font, draw, max_width: int, max_lines: int) -> list[st
     return lines
 
 
-def prepare_image(pin: dict, out_dir: Path) -> Path:
+def prepare_image(pin: dict, out_dir: Path, *, style: str = "editorial",
+                  source: str = "best") -> Path:
+    """Prepare a truthful 2:3 image; editorial is photo-only, branded opt-in.
+
+    Never invent portions of the actual product; a softened copy of the source
+    photograph fills unused edges. Product itself is always contained uncut.
+    """
     try:
-        from PIL import Image, ImageDraw, ImageOps
+        from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
     except ImportError as exc:
         raise GarimpoError("Pillow ausente. Instale com: python -m pip install -r automation/requirements.txt") from exc
-    if pin.get("image_license_confirmed", True) is False:
-        raise GarimpoError("Confirme direitos de uso da imagem antes de preparar.")
-    inp = Path(pin.get("stylized_image_path") or pin["image_path"])
+    if style not in {"editorial", "branded"}:
+        raise GarimpoError("Estilo válido: editorial ou branded")
+    if source not in {"best", "original"}:
+        raise GarimpoError("Fonte válida: best ou original")
+    if pin.get("image_license_confirmed") is not True:
+        raise GarimpoError("Confirme direitos de uso comercial da imagem antes de preparar.")
+    source_path = pin.get("image_path") if source == "original" else (
+        pin.get("stylized_image_path") or pin.get("image_path"))
+    if not source_path:
+        raise GarimpoError("Sem imagem de origem; use review --image-file ou ingest-url.")
+    inp = Path(source_path)
     if not inp.is_file():
         raise GarimpoError("Imagem de origem não encontrada: " + str(inp))
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{pin['id']}.jpg"
-    # Designed for 2:3 Pins; photo is contained, never filled with fabricated details.
-    canvas = Image.new("RGB", (1000, 1500), "#F5EFE3")
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, 0, 1000, 205), fill="#244E46")
-    draw.text((66, 60), "GARIMPO DA VEZ", font=load_font(48), fill="#F5EFE3")
-    draw.text((67, 130), "ACHADOS ÚTEIS PARA A VIDA REAL", font=load_font(20), fill="#D69A72")
-    draw.rounded_rectangle((52, 250, 948, 1090), radius=30, fill="#FFFFFF")
     try:
-        with Image.open(inp) as photo:
-            photo = ImageOps.exif_transpose(photo)
-            photo = ImageOps.contain(photo.convert("RGB"), (840, 775), Image.Resampling.LANCZOS)
-            x = (1000 - photo.width) // 2
-            y = 280 + (780 - photo.height) // 2
-            canvas.paste(photo, (x, y))
-    except (OSError, ValueError) as exc:
+        with Image.open(inp) as img:
+            img = ImageOps.exif_transpose(img)
+            img.load()
+            if img.width * img.height > 35_000_000:
+                raise GarimpoError("Imagem de origem acima do limite de pixels")
+            photo = img.convert("RGB")
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise GarimpoError(f"Imagem inválida: {exc}") from exc
-    draw.text((65, 1143), CATEGORIES[pin["category"]], fill="#B06E45", font=load_font(25))
-    font = load_font(51)
-    lines = text_lines(pin["title"], font, draw, max_width=875, max_lines=3)
-    for i, line in enumerate(lines):
-        draw.text((64, 1199 + 65 * i), line, fill="#244E46", font=font)
-    draw.line((65, 1429, 935, 1429), fill="#C9CDBF", width=2)
-    draw.text((66, 1444), "Contém link de afiliado • Confira os detalhes no Pin", fill="#536E63", font=load_font(18, False))
-    canvas.save(target, "JPEG", quality=87, optimize=True, subsampling=0)
-    if target.stat().st_size > 18 * 1024 * 1024:
-        target.unlink(missing_ok=True)
-        raise GarimpoError("Imagem gerada excedeu 18 MiB")
-    return target
 
+    if style == "editorial":
+        # No text, watermark, stickers, fake product features or brand header.
+        # Preserve the entire reference frame in the foreground (no cutting).
+        canvas = ImageOps.fit(photo, (1000, 1500), Image.Resampling.LANCZOS)
+        canvas = canvas.filter(ImageFilter.GaussianBlur(42))
+        canvas = ImageEnhance.Brightness(canvas).enhance(0.87)
+        foreground = ImageOps.contain(photo, (1000, 1500), Image.Resampling.LANCZOS)
+        x = (1000 - foreground.width) // 2
+        y = (1500 - foreground.height) // 2
+        canvas.paste(foreground, (x, y))
+    else:
+        # Legacy visual retained only when explicitly requested.
+        canvas = Image.new("RGB", (1000, 1500), "#F5EFE3")
+        draw = ImageDraw.Draw(canvas)
+        draw.rectangle((0, 0, 1000, 205), fill="#244E46")
+        draw.text((66, 60), "GARIMPO DA VEZ", font=load_font(48), fill="#F5EFE3")
+        draw.text((67, 130), "ACHADOS ÚTEIS PARA A VIDA REAL",
+                  font=load_font(20), fill="#D69A72")
+        draw.rounded_rectangle((52, 250, 948, 1090), radius=30, fill="#FFFFFF")
+        foreground = ImageOps.contain(photo, (840, 775), Image.Resampling.LANCZOS)
+        canvas.paste(foreground, ((1000 - foreground.width)//2,
+                                 280 + (780 - foreground.height)//2))
+        draw.text((65, 1143), CATEGORIES[pin["category"]],
+                  fill="#B06E45", font=load_font(25))
+        font = load_font(51)
+        lines = text_lines(pin["title"], font, draw, max_width=875, max_lines=3)
+        for i, line in enumerate(lines):
+            draw.text((64, 1199 + 65*i), line, fill="#244E46", font=font)
+        draw.line((65, 1429, 935, 1429), fill="#C9CDBF", width=2)
+        draw.text((66, 1444), "Contém link de afiliado • Confira os detalhes no Pin",
+                  fill="#536E63", font=load_font(18, False))
+
+    # Save atomically to avoid losing the previous good preview on failure.
+    with tempfile.NamedTemporaryFile(dir=out_dir, suffix=".jpg", delete=False) as fp:
+        staging = Path(fp.name)
+    try:
+        canvas.save(staging, "JPEG", quality=90, optimize=True, subsampling=0)
+        if staging.stat().st_size > 18 * 1024 * 1024:
+            raise GarimpoError("Imagem gerada excedeu 18 MiB")
+        os.replace(staging, target)
+    finally:
+        staging.unlink(missing_ok=True)
+    return target
 
 def fingerprint(pin: dict) -> str:
     image = Path(pin["preview_path"])
@@ -502,6 +542,8 @@ def ingest_product_url(url: str, store: Path, *, affiliate_url: str = "",
         "ml_category_id": metadata.get("ml_category_id", ""),
         "title": selected_title, "description": summary + "\n\n" + DISCLOSURE,
         "category": cat, "affiliate_url": url_link,
+        "affiliate_link_source": "central_manual" if affiliate_url else "",
+        "affiliate_confirmed_at": now_iso() if confirm_affiliate_link else "",
         "affiliate_url_confirmed": bool(confirm_affiliate_link),
         "image_license_confirmed": bool(confirm_image_rights and image_path),
         "title_confirmed": bool(title),
@@ -542,6 +584,8 @@ def review_url_draft(pin: dict, *, title: str = "", category: str = "",
         pin["category_confirmed"] = False
     if affiliate_url:
         pin["affiliate_url"] = ensure_https_affiliate_link(affiliate_url)
+        pin["affiliate_link_source"] = "mercadolivre_central_manual"
+        pin["affiliate_confirmed_at"] = ""
         pin["affiliate_url_confirmed"] = False
     if image_file:
         source = Path(image_file).expanduser().resolve()
@@ -564,6 +608,7 @@ def review_url_draft(pin: dict, *, title: str = "", category: str = "",
         if not pin["affiliate_url"]:
             raise GarimpoError("Informe --affiliate-url gerado no Portal do Afiliado.")
         pin["affiliate_url_confirmed"] = True
+        pin["affiliate_confirmed_at"] = now_iso()
         pin["affiliate_link_pending"] = False
     if confirm_title:
         if pin["title"].startswith("Dados pendentes:"):
@@ -593,6 +638,7 @@ def stylize_draft(pin: dict, out: Path, provider: str, *, allow_paid_ai: bool,
         raise GarimpoError(str(exc)) from exc
     pin["stylized_image_path"] = str(target)
     pin["creative_provider"] = "local" if pin.pop("_used_local_fallback", False) else provider
+    pin["ai_modified"] = pin["creative_provider"] in {"openai", "aihorde", "hf-spaces"}
     pin["status"] = "draft"
     pin["preview_path"] = ""
     pin["approval_sha256"] = ""
@@ -659,6 +705,8 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Se nuvem falhar, usar tratamento Pillow sem IA")
         if name == "auto":
             cmd.add_argument("--out", type=Path, default=DEFAULT_OUT)
+            cmd.add_argument("--style", choices=["editorial", "branded"], default="editorial")
+            cmd.add_argument("--source", choices=["best", "original"], default="best")
     rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
     rev.add_argument("id")
     rev.add_argument("--title", default="")
@@ -706,6 +754,13 @@ def build_parser() -> argparse.ArgumentParser:
     prep = sub.add_parser("prepare", help="Gera imagem vertical do Pin sem publicar")
     prep.add_argument("id")
     prep.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    prep.add_argument("--style", choices=["editorial", "branded"], default="editorial",
+                      help="Editorial sem banner (padrão) ou layout antigo com marca")
+    prep.add_argument("--source", choices=["best", "original"], default="best",
+                      help="best usa edição disponível; original usa fotografia de origem")
+    exp = sub.add_parser("export-business", help="Exporta campos + foto para Pinterest Business manual, sem API")
+    exp.add_argument("id")
+    exp.add_argument("--out", type=Path, default=DEFAULT_OUT / "business")
     app = sub.add_parser("approve", help="Aprova um Pin e uma pasta específicos")
     app.add_argument("id")
     app.add_argument("--board-id", required=True)
@@ -751,7 +806,9 @@ def run(argv: list[str] | None = None) -> int:
         for note in pin["notes"]:
             print("ATENÇÃO:", note)
         if args.affiliate_browser:
+            pin["affiliate_link_source"] = "mercadolivre_central_browser"
             pin["affiliate_link_pending"] = True
+            pin["affiliate_confirmed_at"] = ""
             pin["affiliate_url_confirmed"] = False
             state = load_store(args.store)
             state["pins"][pin["id"]] = pin
@@ -768,8 +825,10 @@ def run(argv: list[str] | None = None) -> int:
                                            allow_paid_ai=args.allow_paid_ai,
                                            cloud_options=cloud_options_from_args(args))
                     print(f"Imagem estilizada ({args.provider}): {styled}")
-                path = prepare_image(pin, args.out.resolve())
+                path = prepare_image(pin, args.out.resolve(), style=args.style, source=args.source)
                 pin["preview_path"] = str(path)
+                pin["creative_style"] = args.style
+                pin["prepared_source"] = args.source
                 pin["status"] = "prepared"
                 print(f"Pin preparado: {path}. Revisão e aprovação ainda obrigatórias.")
             state = load_store(args.store)
@@ -828,7 +887,9 @@ def run(argv: list[str] | None = None) -> int:
         fields = ("id", "status", "title", "category", "source_url", "item_id", "ml_category_id",
                   "metadata_source", "metadata_verified", "image_path", "image_license_confirmed",
                   "affiliate_url", "affiliate_url_confirmed", "affiliate_link_pending",
-                  "title_confirmed", "category_confirmed", "stylized_image_path", "preview_path", "notes")
+                  "title_confirmed", "category_confirmed", "stylized_image_path", "preview_path",
+                  "creative_provider", "creative_style", "prepared_source", "ai_modified",
+                  "affiliate_link_source", "affiliate_confirmed_at", "notes")
         print(json.dumps({field: pin.get(field) for field in fields}, ensure_ascii=False, indent=2))
         return 0
     if args.command == "affiliate-link":
@@ -838,6 +899,8 @@ def run(argv: list[str] | None = None) -> int:
         if not product_url:
             raise GarimpoError("Informe --product-url com URL real do anúncio.")
         pin["affiliate_url"] = capture_affiliate_link(product_url, args.browser, args.cdp_url)
+        pin["affiliate_link_source"] = "mercadolivre_central_browser"
+        pin["affiliate_confirmed_at"] = ""
         pin["affiliate_link_pending"] = True
         pin["affiliate_url_confirmed"] = False
         pin["status"] = "draft"
@@ -850,8 +913,9 @@ def run(argv: list[str] | None = None) -> int:
         if not pin.get("affiliate_url"):
             raise GarimpoError("Rascunho sem link de afiliado")
         pin["affiliate_url_confirmed"] = True
+        pin["affiliate_confirmed_at"] = now_iso()
         pin["affiliate_link_pending"] = False
-        print("Link de afiliado confirmado. Ainda não foi publicado.")
+        print("Link individual do produto confirmado. Ainda não foi publicado.")
     elif args.command == "confirm-image-rights":
         if pin["status"] not in {"draft", "prepared"} or not args.confirm:
             raise GarimpoError("A confirmação só é permitida em Pins não aprovados, com --confirm.")
@@ -896,11 +960,24 @@ def run(argv: list[str] | None = None) -> int:
     elif args.command == "prepare":
         if pin["status"] not in {"draft", "prepared"}:
             raise GarimpoError("Pin já aprovado/enviado. Não é permitido alterar criativo aprovado.")
-        path = prepare_image(pin, args.out.resolve())
+        path = prepare_image(pin, args.out.resolve(), style=args.style, source=args.source)
         pin["preview_path"] = str(path)
+        pin["creative_style"] = args.style
+        pin["prepared_source"] = args.source
         pin["status"] = "prepared"
         pin["approval_sha256"] = ""
-        print(f"Criativo pronto: {path}\nRevise imagem, título e link antes de aprovar.")
+        print(f"Criativo {args.style} pronto: {path}\nRevise imagem, título e link antes de aprovar.")
+    elif args.command == "export-business":
+        try:
+            from pinterest_business import export_business, BusinessExportError
+        except ModuleNotFoundError:
+            from automation.pinterest_business import export_business, BusinessExportError
+        try:
+            folder = export_business(pin, args.out.resolve())
+        except BusinessExportError as exc:
+            raise GarimpoError(str(exc)) from exc
+        print(f"Pacote Pinterest Business: {folder}")
+        print("Leia checklist.md, copie fields.json/copy.txt e publique manualmente.")
     elif args.command == "approve":
         if not args.confirm:
             raise GarimpoError("É necessário --confirm após revisar o criativo")

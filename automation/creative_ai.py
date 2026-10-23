@@ -42,28 +42,14 @@ def _photo(pin: dict) -> Image.Image:
 
 
 def _local_enhance(pin: dict, target: Path):
-    """Tratamento fotográfico + moldura, NÃO geração por IA."""
+    """Natural color/contrast improvement only; NEVER an ad-style frame or AI."""
     photo = _photo(pin)
-    photo = ImageEnhance.Contrast(photo).enhance(1.07)
-    photo = ImageEnhance.Color(photo).enhance(1.04)
-    photo = ImageOps.contain(photo, (920, 1110), Image.Resampling.LANCZOS)
-    canvas = Image.new("RGB", (1024, 1536), "#EDEAE2")
-    # Fundo gráfico discreto; a fotografia permanece intacta em proporção.
-    canvas.paste(Image.new("RGB", (1024, 400), "#244E46"), (0, 0))
-    shadow = Image.new("RGBA", (1024, 1536))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.rounded_rectangle((45, 160, 979, 1405), radius=35, fill=(0, 0, 0, 80))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(26))
-    canvas = Image.alpha_composite(canvas.convert("RGBA"), shadow)
-    overlay = Image.new("RGBA", (1024, 1536), (0, 0, 0, 0))
-    dr = ImageDraw.Draw(overlay)
-    dr.rounded_rectangle((42, 150, 982, 1400), radius=30, fill="#FDFCF8")
-    canvas = Image.alpha_composite(canvas, overlay)
-    x = (1024 - photo.width) // 2
-    y = 220 + (1070 - photo.height) // 2
-    canvas.paste(photo, (x, y))
-    canvas.convert("RGB").save(target, "PNG", optimize=True)
-
+    photo = ImageEnhance.Contrast(photo).enhance(1.06)
+    photo = ImageEnhance.Color(photo).enhance(1.025)
+    photo = ImageEnhance.Sharpness(photo).enhance(1.08)
+    # Keep original subject, colors, captions already embedded in the input.
+    # No synthetic product alterations, logos, overlays, branding or sales copy.
+    photo.save(target, "PNG", optimize=True)
 
 def _openai_edit(pin: dict, target: Path, *, api_key: str | None = None):
     key = api_key or os.environ.get("OPENAI_API_KEY", "")
