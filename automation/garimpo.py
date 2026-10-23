@@ -138,6 +138,16 @@ def save_store(path: Path, data: dict) -> None:
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    # JSON is authoritative; XLSX is a regenerable local view.
+    try:
+        try:
+            from excel_catalog import sync_catalog, ExcelCatalogError
+        except ModuleNotFoundError:
+            from automation.excel_catalog import sync_catalog, ExcelCatalogError
+        sync_catalog(path, data)
+    except (ExcelCatalogError, OSError) as exc:
+        print(f"AVISO: {exc}", file=sys.stderr)
+
 
 def import_csv(csv_path: Path, store_path: Path) -> int:
     csv_path = csv_path.resolve()
