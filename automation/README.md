@@ -1,5 +1,11 @@
 # Garimpo da Vez — Assistente de Pins (Python)
 
+## Descoberta de produtos sem IDs manuais
+
+O novo comando `python automation/garimpo.py ml-discover` apresenta categorias e subcategorias oficiais do Mercado Livre e tenta buscar anúncios reais. Basta escolher pelo **número**; o anúncio é importado como rascunho, sem link de afiliado inventado. Se a API de busca responder HTTP 403, continue copiando a URL real do anúncio para `ingest-url`. Os comandos por produto (`prepare`, `stylize`, `review`, `affiliate-link`, `show`, etc.) agora aceitam ID opcional e oferecem menu numerado e filtros `--choose-category`/`--choose-search`.
+
+A melhoria fotográfica local `--provider opencv` usa CPU e exige apenas a instalação opcional `pip install -r automation/requirements-opencv.txt`. Veja [ML_DISCOVERY.md](ML_DISCOVERY.md) para documentação e comandos. Os links de afiliado continuam vindos exclusivamente da Central de Afiliados do Mercado Livre, por produto, jamais da API de anúncios.
+
 
 **Exportação sem ID:** `python automation/garimpo.py export-business` exporta todos os Pins preparados/aprovados que passam nas confirmações de foto e link individual. `--latest` exporta apenas o mais recente; informar `ID_LOCAL` continua opcional para escolher um produto específico. O comando não cria links pela API Mercado Livre e não publica nada.
 ## Novo: Pins naturais + publicação manual no Pinterest Business

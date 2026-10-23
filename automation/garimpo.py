@@ -690,7 +690,7 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
         cmd.add_argument("--cdp-url", default="", help="Edge local já aberto via CDP, ex.: http://127.0.0.1:9333")
         if name == "auto":
-            cmd.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai", "none"], default="local")
+            cmd.add_argument("--provider", choices=["local", "opencv", "aihorde", "hf-spaces", "openai", "none"], default="local")
             cmd.add_argument("--allow-paid-ai", action="store_true")
         cmd.add_argument("--allow-public-processing", action="store_true",
                          help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
@@ -708,7 +708,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--style", choices=["editorial", "branded"], default="editorial")
             cmd.add_argument("--source", choices=["best", "original"], default="best")
     rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
-    rev.add_argument("id")
+    rev.add_argument("id", nargs="?", help="Omitir para escolher na lista de produtos")
     rev.add_argument("--title", default="")
     rev.add_argument("--category", choices=list(CATEGORIES), default="")
     rev.add_argument("--affiliate-url", default="")
@@ -716,21 +716,21 @@ def build_parser() -> argparse.ArgumentParser:
     for flag in ("confirm-title", "confirm-category", "confirm-image-rights", "confirm-affiliate-link"):
         rev.add_argument("--" + flag, action="store_true")
     link = sub.add_parser("affiliate-link", help="Obtém link pela Central em navegador interativo para um rascunho")
-    link.add_argument("id")
+    link.add_argument("id", nargs="?")
     link.add_argument("--product-url", default="", help="URL normal do anúncio; padrão: source_url")
     link.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
     link.add_argument("--cdp-url", default="", help="Reutiliza Edge dedicado via CDP")
     confirm_link = sub.add_parser("confirm-link", help="Confirma após revisão humana que o link pertence ao produto")
-    confirm_link.add_argument("id")
+    confirm_link.add_argument("id", nargs="?")
     confirm_link.add_argument("--confirm", action="store_true", required=True)
     rights = sub.add_parser("confirm-image-rights", help="Registra autorização comercial da foto em um rascunho antigo")
-    rights.add_argument("id")
+    rights.add_argument("id", nargs="?")
     rights.add_argument("--image-file", default="", help="Opcional: substituir pela imagem autorizada")
     rights.add_argument("--confirm", action="store_true", required=True,
                         help="Declara que você possui direitos de uso comercial desta imagem")
     st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
-    st.add_argument("id")
-    st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
+    st.add_argument("id", nargs="?")
+    st.add_argument("--provider", choices=["local", "opencv", "aihorde", "hf-spaces", "openai"], default="local")
     st.add_argument("--allow-paid-ai", action="store_true")
     st.add_argument("--allow-public-processing", action="store_true",
                      help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
@@ -747,12 +747,12 @@ def build_parser() -> argparse.ArgumentParser:
     ls = sub.add_parser("list", help="Exibe situação dos Pins")
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
     show = sub.add_parser("show", help="Mostra dados e pendências do produto para revisão")
-    show.add_argument("id")
+    show.add_argument("id", nargs="?")
     knowledge = sub.add_parser("knowledge", help="Mostra os textos knowledge selecionados para o criativo")
-    knowledge.add_argument("id")
+    knowledge.add_argument("id", nargs="?")
     knowledge.add_argument("--prompt", action="store_true", help="Exibe o prompt editorial completo")
     prep = sub.add_parser("prepare", help="Gera imagem vertical do Pin sem publicar")
-    prep.add_argument("id")
+    prep.add_argument("id", nargs="?")
     prep.add_argument("--out", type=Path, default=DEFAULT_OUT)
     prep.add_argument("--style", choices=["editorial", "branded"], default="editorial",
                       help="Editorial sem banner (padrão) ou layout antigo com marca")
@@ -760,21 +760,23 @@ def build_parser() -> argparse.ArgumentParser:
                       help="best usa edição disponível; original usa fotografia de origem")
     exp = sub.add_parser("export-business", help="Exporta campos + foto para Pinterest Business manual, sem API")
     exp.add_argument("id", nargs="?", help="Opcional: ID de um único produto. Sem ID, exporta todos os Pins prontos.")
+    exp.add_argument("--choose", action="store_true",
+                     help="Escolha um único produto da fila por número, sem informar ID")
     exp.add_argument("--latest", action="store_true",
                      help="Sem ID, exporta apenas o Pin pronto mais recentemente preparado")
     exp.add_argument("--out", type=Path, default=DEFAULT_OUT / "business")
     app = sub.add_parser("approve", help="Aprova um Pin e uma pasta específicos")
-    app.add_argument("id")
+    app.add_argument("id", nargs="?")
     app.add_argument("--board-id", required=True)
     app.add_argument("--confirm", action="store_true", required=True)
     pub = sub.add_parser("publish", help="Publica UM Pin aprovado via Pinterest API oficial")
-    pub.add_argument("id")
+    pub.add_argument("id", nargs="?")
     pub.add_argument("--confirm", action="store_true", required=True)
     verify = sub.add_parser("verify-ml", help="Consulta um anúncio via API oficial ML (somente leitura)")
-    verify.add_argument("id", help="ID local do Pin importado")
+    verify.add_argument("id", nargs="?", help="Omitir para escolher produto da lista")
     verify.add_argument("--item-id", help="ID MLB real do anúncio (se não informado no CSV)")
     reset = sub.add_parser("reset", help="Libera novo preparo depois de conciliar uma publicação incerta")
-    reset.add_argument("id")
+    reset.add_argument("id", nargs="?")
     reset.add_argument("--confirmed-not-published", action="store_true", required=True)
     sub.add_parser("boards", help="Lista pastas acessíveis pelo token Pinterest (somente leitura)")
     check = sub.add_parser("hf-check", help="Inspeciona Space/endpoint Gradio sem imagem nem cota de GPU")
@@ -782,6 +784,25 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--api-name", default="", help="Endpoint; padrão HF_SPACE_API_NAME")
     check.add_argument("--image-arg", default="image")
     check.add_argument("--prompt-arg", default="prompt")
+    discovery = sub.add_parser("ml-discover",
+                               help="Escolhe categoria/nicho e anúncio pela API oficial, sem ID manual nem link de afiliado")
+    discovery.add_argument("--query", default="", help="Busca por palavras-chave, ex.: refletor LED")
+    discovery.add_argument("--category-id", default="", help="Opcional: categoria oficial MLB já escolhida")
+    discovery.add_argument("--any-category", action="store_true",
+                           help="Buscar em todas as categorias, sem menu de categoria")
+    discovery.add_argument("--limit", type=int, default=15)
+    discovery.add_argument("--pick", type=int, help="Seleciona número do resultado e cria rascunho")
+    discovery.add_argument("--list-only", action="store_true",
+                           help="Somente exibe resultados sem importar nada")
+    # Shared optional manual filters; never make ID mandatory.
+    for command_name in ("review", "affiliate-link", "confirm-link", "confirm-image-rights",
+                         "stylize", "show", "knowledge", "prepare", "approve", "publish",
+                         "verify-ml", "reset", "export-business"):
+        selector = sub.choices[command_name]
+        selector.add_argument("--choose-search", default="", help="Filtrar Pin pelo nome ou ID")
+        selector.add_argument("--choose-category", default="",
+                              help="Filtrar Pin por nicho/slug ou ID/nome da categoria")
+
     return parser
 
 
@@ -838,6 +859,73 @@ def run(argv: list[str] | None = None) -> int:
             state["pins"][pin["id"]] = pin
             save_store(args.store, state)
         return 0
+    if args.command == "ml-discover":
+        try:
+            from ml_discovery import (DiscoveryError, browse_categories, read_token,
+                                     search_listings, pick_one)
+        except ModuleNotFoundError:
+            from automation.ml_discovery import (DiscoveryError, browse_categories,
+                                                 read_token, search_listings, pick_one)
+        try:
+            token = read_token()
+            chosen_category = None
+            if args.category_id or (not args.any_category and sys.stdin.isatty()):
+                chosen_category = browse_categories(
+                    token=token, category_id=args.category_id
+                )
+                print(f"Categoria escolhida: {chosen_category['name']} "
+                      f"({chosen_category['id']})")
+            query = args.query.strip()
+            if not query:
+                if not sys.stdin.isatty():
+                    raise DiscoveryError("Informe --query ou abra um terminal interativo.")
+                query = input("O que você quer pesquisar nesta categoria? ").strip()
+            matches = search_listings(
+                query, category_id=chosen_category["id"] if chosen_category else "",
+                limit=args.limit, token=token,
+            )
+            if not matches:
+                print("Nenhum anúncio compatível retornado pela API oficial.")
+                print("Pesquise no site, escolha um anúncio e use ingest-url com a URL.")
+                return 0
+            print(f"{len(matches)} anúncios individuais encontrados; nenhum link de "
+                  "afiliado é criado pela API.")
+            for idx, item in enumerate(matches, 1):
+                item_currency = item.get("currency") or item.get("currency_id") or "BRL"
+                price = (f" | {item_currency} {item['price']:.2f}"
+                         if isinstance(item.get("price"), (float, int)) else "")
+                print(f" {idx:>2}. {item['title']} [{item['id']}]"
+                      f" ({item['category_id'] or 'categoria pendente'}){price}")
+            if args.list_only:
+                print("Modo lista: nenhum rascunho criado.")
+                return 0
+            option = pick_one(matches, "Escolha o anúncio para importar:",
+                              selection=args.pick)
+            chosen = matches[option - 1]
+            pin = ingest_product_url(chosen["permalink"], args.store)
+            # Search data is evidence, not human confirmation or commission.
+            if not pin.get("metadata_verified") and pin["title"].startswith("Dados pendentes:"):
+                pin["title"] = chosen["title"]
+                pin["title_confirmed"] = False
+                pin["notes"].append(
+                    "Título recuperado da busca oficial; confira no anúncio antes de publicar."
+                )
+            if not pin.get("ml_category_id") and chosen["category_id"]:
+                pin["ml_category_id"] = chosen["category_id"]
+            pin["discovered_via"] = "mercadolivre_official_search"
+            pin["discovery_root_category_id"] = (
+                chosen_category["id"] if chosen_category else ""
+            )
+            state = load_store(args.store)
+            state["pins"][pin["id"]] = pin
+            save_store(args.store, state)
+            print(f"Rascunho criado para {pin['id']}: {pin['title']}")
+            print("Confira dados e obtenha link individual em Compartilhar "
+                  "na Central de Afiliados. Não foi gerado link via API.")
+            return 0
+        except DiscoveryError as exc:
+            raise GarimpoError(str(exc)) from exc
+
     if args.command == "hf-check":
         try:
             from hf_diagnostics import inspect_space, HFDiagnosticError
@@ -866,7 +954,22 @@ def run(argv: list[str] | None = None) -> int:
     if args.command == "publish":
         if not args.confirm:
             raise GarimpoError("Publicação exige --confirm")
-        publish_one_approved(args.store, args.id)
+        state = load_store(args.store)
+        if args.id:
+            selected_id = args.id
+        else:
+            try:
+                from pin_selector import resolve_pin, SelectionError
+            except ModuleNotFoundError:
+                from automation.pin_selector import resolve_pin, SelectionError
+            try:
+                selected_id = resolve_pin(
+                    state["pins"], command="publish",
+                    search=args.choose_search, category=args.choose_category
+                )["id"]
+            except SelectionError as exc:
+                raise GarimpoError(str(exc)) from exc
+        publish_one_approved(args.store, selected_id)
         return 0
     state = load_store(args.store)
     if args.command == "list":
@@ -880,14 +983,37 @@ def run(argv: list[str] | None = None) -> int:
         except ModuleNotFoundError:
             from automation.pinterest_business import export_business, validate_handoff, BusinessExportError
 
-        if args.id and args.latest:
-            raise GarimpoError("Use um ID explícito OU --latest, não ambos.")
+        if (args.id and (args.latest or args.choose)) or (args.latest and args.choose):
+            raise GarimpoError("Use ID explícito OU --latest OU --choose (não combine opções).")
         if args.id:
             candidates = [get_pin(state, args.id)]
+        elif args.choose:
+            try:
+                from pin_selector import resolve_pin, SelectionError
+            except ModuleNotFoundError:
+                from automation.pin_selector import resolve_pin, SelectionError
+            try:
+                candidates = [resolve_pin(
+                    state["pins"], command="export-business",
+                    search=args.choose_search, category=args.choose_category
+                )]
+            except SelectionError as exc:
+                raise GarimpoError(str(exc)) from exc
         else:
             candidates = []
             rejected = []
             for local_id, entry in sorted(state["pins"].items()):
+                if args.choose_search or args.choose_category:
+                    try:
+                        from pin_selector import filter_pins
+                    except ModuleNotFoundError:
+                        from automation.pin_selector import filter_pins
+                    filtered = filter_pins(
+                        {local_id: entry}, command="export-business",
+                        search=args.choose_search, category=args.choose_category
+                    )
+                    if not filtered:
+                        continue
                 try:
                     validate_handoff(entry)
                 except BusinessExportError as exc:
@@ -916,7 +1042,20 @@ def run(argv: list[str] | None = None) -> int:
         print(f"{len(exported)} pacote(s) gerado(s); nenhuma publicação realizada.")
         print("Abra copy.txt e checklist.md em cada pasta para concluir no Pinterest Business.")
         return 0
-    pin = get_pin(state, args.id)
+    if args.id:
+        pin = get_pin(state, args.id)
+    else:
+        try:
+            from pin_selector import resolve_pin, SelectionError
+        except ModuleNotFoundError:
+            from automation.pin_selector import resolve_pin, SelectionError
+        try:
+            pin = resolve_pin(state["pins"], command=args.command,
+                              search=args.choose_search, category=args.choose_category)
+        except SelectionError as exc:
+            raise GarimpoError(str(exc)) from exc
+    # All downstream paths can use the resolved ID; avoid None in messages.
+    args.id = pin["id"]
     if args.command == "knowledge":
         try:
             from prompt_templates import select_knowledge, make_prompt, knowledge_path
