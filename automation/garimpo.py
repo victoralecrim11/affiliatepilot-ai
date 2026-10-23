@@ -828,10 +828,13 @@ def run(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "import-xlsx":
         try:
-            from excel_catalog import import_excel_drafts
+            from excel_catalog import import_excel_drafts, ExcelCatalogError
         except ModuleNotFoundError:
-            from automation.excel_catalog import import_excel_drafts
-        amount = import_excel_drafts(args.xlsx, args.store)
+            from automation.excel_catalog import import_excel_drafts, ExcelCatalogError
+        try:
+            amount = import_excel_drafts(args.xlsx, args.store)
+        except ExcelCatalogError as exc:
+            raise GarimpoError(str(exc)) from exc
         print(f"{amount} novo(s) produto(s) criado(s) como rascunhos não confirmados.")
         print("Revise título, categoria, direitos de imagem e link individual antes de publicar.")
         return 0
