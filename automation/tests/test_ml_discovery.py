@@ -174,7 +174,7 @@ class DiscoveryTests(unittest.TestCase):
                 argv=[name, "--choose-category","casa","--choose-search","refletor"]
                 if name=="approve":
                     argv.extend(["--board-id","123456789"])
-                if name in ("publish","confirm-link","reset","confirm-image-rights"):
+                if name in ("approve","publish","confirm-link","reset","confirm-image-rights"):
                     if name=="reset":
                         argv.append("--confirmed-not-published")
                     else:
