@@ -1,5 +1,9 @@
 # Garimpo da Vez — Seletor de Produtos e Categorias via Mercado Livre
 
+## Catálogo Excel automático (novo padrão; CSV é legado)
+
+O sistema agora mantém **automation/data/produtos.xlsx** automaticamente a partir da fila local: cada anúncio descoberto, revisão, link individual de afiliado confirmado ou criativo preparado atualiza a planilha, sem digitar ID nem preencher CSV. O Excel tem abas **Produtos**, **Resumo** e **Categorias oficiais**. Para gerar a planilha dos produtos já existentes, use `python automation/garimpo.py excel-sync`. Para importar novos registros de uma planilha padrão, use `python automation/garimpo.py import-xlsx minha-planilha.xlsx`. A fila JSON continua responsável por aprovações e publicação; o Excel é um catálogo sincronizado. Alterações manuais são detectadas e preservadas, com reconciliação explícita via `excel-sync --force`. Consulte [EXCEL_CATALOG.md](EXCEL_CATALOG.md) para detalhes e segurança.
+
 ## Objetivo
 
 Escolher produtos por **categoria → subcategoria → palavras-chave → anúncio**,
