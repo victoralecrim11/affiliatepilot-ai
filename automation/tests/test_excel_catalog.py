@@ -157,6 +157,26 @@ class ExcelCatalogTests(unittest.TestCase):
         self.assertTrue(entry["affiliate_link_pending"])
         self.assertFalse(entry["image_license_confirmed"])
 
+    def test_manual_edit_is_preserved_until_explicit_force(self):
+        garimpo.save_store(self.store, self.data(self.one))
+        dest = self.store.parent / "produtos.xlsx"
+        with ZipFile(dest, "a") as archive:
+            archive.writestr("custom_user_notes.txt", "edição manual")
+        original_bytes = dest.read_bytes()
+        updated = dict(self.one, affiliate_url="https://meli.la/NewRealLink")
+        garimpo.save_store(self.store, self.data(updated))
+        self.assertEqual(dest.read_bytes(), original_bytes)
+        self.assertEqual(garimpo.load_store(self.store)["pins"]["produto-1"]["affiliate_url"],
+                         "https://meli.la/NewRealLink")
+        with self.assertRaisesRegex(garimpo.GarimpoError, "editado externamente"):
+            garimpo.run(["--store", str(self.store), "excel-sync"])
+        self.assertEqual(garimpo.run([
+            "--store", str(self.store), "excel-sync", "--force"
+        ]), 0)
+        self.assertNotEqual(dest.read_bytes(), original_bytes)
+        entries = excel_catalog.read_products(dest)
+        self.assertEqual(entries[0]["Link afiliado"], "https://meli.la/NewRealLink")
+
     def test_locked_excel_keeps_json_and_can_resync(self):
         with patch.object(excel_catalog, "sync_catalog",
                           side_effect=excel_catalog.ExcelCatalogError("arquivo bloqueado")):
