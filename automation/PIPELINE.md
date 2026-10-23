@@ -1,5 +1,9 @@
 # Fluxo URL → rascunho → arte → aprovação (Garimpo da Vez)
 
+## Catálogo Excel automático (novo padrão; CSV é legado)
+
+O sistema agora mantém **automation/data/produtos.xlsx** automaticamente a partir da fila local: cada anúncio descoberto, revisão, link individual de afiliado confirmado ou criativo preparado atualiza a planilha, sem digitar ID nem preencher CSV. O Excel tem abas **Produtos**, **Resumo** e **Categorias oficiais**. Para gerar a planilha dos produtos já existentes, use `python automation/garimpo.py excel-sync`. Para importar novos registros de uma planilha padrão, use `python automation/garimpo.py import-xlsx minha-planilha.xlsx`. A fila JSON continua responsável por aprovações e publicação; o Excel é um catálogo sincronizado. Alterações manuais são detectadas e preservadas, com reconciliação explícita via `excel-sync --force`. Consulte [EXCEL_CATALOG.md](EXCEL_CATALOG.md) para detalhes e segurança.
+
 
 **Exportação sem ID:** `python automation/garimpo.py export-business` exporta todos os Pins preparados/aprovados que passam nas confirmações de foto e link individual. `--latest` exporta apenas o mais recente; informar `ID_LOCAL` continua opcional para escolher um produto específico. O comando não cria links pela API Mercado Livre e não publica nada.
 ## Novo: Pins naturais + publicação manual no Pinterest Business
