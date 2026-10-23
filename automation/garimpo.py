@@ -708,7 +708,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--style", choices=["editorial", "branded"], default="editorial")
             cmd.add_argument("--source", choices=["best", "original"], default="best")
     rev = sub.add_parser("review", help="Completa campos e autorizações pendentes de um rascunho importado por URL")
-    rev.add_argument("id")
+    rev.add_argument("id", nargs="?", help="Omitir para escolher na lista de produtos")
     rev.add_argument("--title", default="")
     rev.add_argument("--category", choices=list(CATEGORIES), default="")
     rev.add_argument("--affiliate-url", default="")
@@ -716,20 +716,20 @@ def build_parser() -> argparse.ArgumentParser:
     for flag in ("confirm-title", "confirm-category", "confirm-image-rights", "confirm-affiliate-link"):
         rev.add_argument("--" + flag, action="store_true")
     link = sub.add_parser("affiliate-link", help="Obtém link pela Central em navegador interativo para um rascunho")
-    link.add_argument("id")
+    link.add_argument("id", nargs="?")
     link.add_argument("--product-url", default="", help="URL normal do anúncio; padrão: source_url")
     link.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
     link.add_argument("--cdp-url", default="", help="Reutiliza Edge dedicado via CDP")
     confirm_link = sub.add_parser("confirm-link", help="Confirma após revisão humana que o link pertence ao produto")
-    confirm_link.add_argument("id")
+    confirm_link.add_argument("id", nargs="?")
     confirm_link.add_argument("--confirm", action="store_true", required=True)
     rights = sub.add_parser("confirm-image-rights", help="Registra autorização comercial da foto em um rascunho antigo")
-    rights.add_argument("id")
+    rights.add_argument("id", nargs="?")
     rights.add_argument("--image-file", default="", help="Opcional: substituir pela imagem autorizada")
     rights.add_argument("--confirm", action="store_true", required=True,
                         help="Declara que você possui direitos de uso comercial desta imagem")
     st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
-    st.add_argument("id")
+    st.add_argument("id", nargs="?")
     st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
     st.add_argument("--allow-paid-ai", action="store_true")
     st.add_argument("--allow-public-processing", action="store_true",
@@ -747,12 +747,12 @@ def build_parser() -> argparse.ArgumentParser:
     ls = sub.add_parser("list", help="Exibe situação dos Pins")
     ls.add_argument("--status", choices=["draft", "prepared", "approved", "publishing", "published", "needs_check"])
     show = sub.add_parser("show", help="Mostra dados e pendências do produto para revisão")
-    show.add_argument("id")
+    show.add_argument("id", nargs="?")
     knowledge = sub.add_parser("knowledge", help="Mostra os textos knowledge selecionados para o criativo")
-    knowledge.add_argument("id")
+    knowledge.add_argument("id", nargs="?")
     knowledge.add_argument("--prompt", action="store_true", help="Exibe o prompt editorial completo")
     prep = sub.add_parser("prepare", help="Gera imagem vertical do Pin sem publicar")
-    prep.add_argument("id")
+    prep.add_argument("id", nargs="?")
     prep.add_argument("--out", type=Path, default=DEFAULT_OUT)
     prep.add_argument("--style", choices=["editorial", "branded"], default="editorial",
                       help="Editorial sem banner (padrão) ou layout antigo com marca")
@@ -760,21 +760,23 @@ def build_parser() -> argparse.ArgumentParser:
                       help="best usa edição disponível; original usa fotografia de origem")
     exp = sub.add_parser("export-business", help="Exporta campos + foto para Pinterest Business manual, sem API")
     exp.add_argument("id", nargs="?", help="Opcional: ID de um único produto. Sem ID, exporta todos os Pins prontos.")
+    exp.add_argument("--choose", action="store_true",
+                     help="Escolha um único produto da fila por número, sem informar ID")
     exp.add_argument("--latest", action="store_true",
                      help="Sem ID, exporta apenas o Pin pronto mais recentemente preparado")
     exp.add_argument("--out", type=Path, default=DEFAULT_OUT / "business")
     app = sub.add_parser("approve", help="Aprova um Pin e uma pasta específicos")
-    app.add_argument("id")
+    app.add_argument("id", nargs="?")
     app.add_argument("--board-id", required=True)
     app.add_argument("--confirm", action="store_true", required=True)
     pub = sub.add_parser("publish", help="Publica UM Pin aprovado via Pinterest API oficial")
-    pub.add_argument("id")
+    pub.add_argument("id", nargs="?")
     pub.add_argument("--confirm", action="store_true", required=True)
     verify = sub.add_parser("verify-ml", help="Consulta um anúncio via API oficial ML (somente leitura)")
-    verify.add_argument("id", help="ID local do Pin importado")
+    verify.add_argument("id", nargs="?", help="Omitir para escolher produto da lista")
     verify.add_argument("--item-id", help="ID MLB real do anúncio (se não informado no CSV)")
     reset = sub.add_parser("reset", help="Libera novo preparo depois de conciliar uma publicação incerta")
-    reset.add_argument("id")
+    reset.add_argument("id", nargs="?")
     reset.add_argument("--confirmed-not-published", action="store_true", required=True)
     sub.add_parser("boards", help="Lista pastas acessíveis pelo token Pinterest (somente leitura)")
     check = sub.add_parser("hf-check", help="Inspeciona Space/endpoint Gradio sem imagem nem cota de GPU")
@@ -782,6 +784,25 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--api-name", default="", help="Endpoint; padrão HF_SPACE_API_NAME")
     check.add_argument("--image-arg", default="image")
     check.add_argument("--prompt-arg", default="prompt")
+    discovery = sub.add_parser("ml-discover",
+                               help="Escolhe categoria/nicho e anúncio pela API oficial, sem ID manual nem link de afiliado")
+    discovery.add_argument("--query", default="", help="Busca por palavras-chave, ex.: refletor LED")
+    discovery.add_argument("--category-id", default="", help="Opcional: categoria oficial MLB já escolhida")
+    discovery.add_argument("--any-category", action="store_true",
+                           help="Buscar em todas as categorias, sem menu de categoria")
+    discovery.add_argument("--limit", type=int, default=15)
+    discovery.add_argument("--pick", type=int, help="Seleciona número do resultado e cria rascunho")
+    discovery.add_argument("--list-only", action="store_true",
+                           help="Somente exibe resultados sem importar nada")
+    # Shared optional manual filters; never make ID mandatory.
+    for command_name in ("review", "affiliate-link", "confirm-link", "confirm-image-rights",
+                         "stylize", "show", "knowledge", "prepare", "approve", "publish",
+                         "verify-ml", "reset", "export-business"):
+        selector = sub.choices[command_name]
+        selector.add_argument("--choose-search", default="", help="Filtrar Pin pelo nome ou ID")
+        selector.add_argument("--choose-category", default="",
+                              help="Filtrar Pin por nicho/slug ou ID/nome da categoria")
+
     return parser
 
 
