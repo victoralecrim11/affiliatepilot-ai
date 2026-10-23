@@ -19,6 +19,7 @@ def fold(s: object) -> str:
 
 
 ELIGIBLE = {
+    "export-business": {"prepared", "approved"},
     "prepare": {"draft", "prepared"},
     "stylize": {"draft", "prepared"},
     "show": None,
