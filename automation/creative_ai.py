@@ -51,6 +51,35 @@ def _local_enhance(pin: dict, target: Path):
     # No synthetic product alterations, logos, overlays, branding or sales copy.
     photo.save(target, "PNG", optimize=True)
 
+def _opencv_enhance(pin: dict, target: Path):
+    """CPU-only photographic improvement, not a generative scene editor.
+
+    CLAHE on luminance preserves product hues; conservative sharpening does
+    not invent components. No billboards, text, logos, or fake lighting beams.
+    """
+    try:
+        import cv2
+        import numpy as np
+    except ImportError as exc:
+        raise CreativeError(
+            "OpenCV opcional ausente: python -m pip install -r automation/requirements-opencv.txt"
+        ) from exc
+    photo = _photo(pin)
+    if max(photo.size) > 2200:
+        photo.thumbnail((2200, 2200), Image.Resampling.LANCZOS)
+    rgb = np.asarray(photo, dtype=np.uint8)
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
+    l, a, b = cv2.split(lab)
+    # Low clip limit avoids highly artificial contrast/halo effects.
+    clahe = cv2.createCLAHE(clipLimit=1.35, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    corrected = cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2RGB)
+    result = Image.fromarray(corrected, "RGB")
+    result = ImageEnhance.Color(result).enhance(1.02)
+    result = ImageEnhance.Sharpness(result).enhance(1.08)
+    result.save(target, "PNG", optimize=True)
+
+
 def _openai_edit(pin: dict, target: Path, *, api_key: str | None = None):
     key = api_key or os.environ.get("OPENAI_API_KEY", "")
     if not key:
@@ -107,8 +136,8 @@ def stylize(pin: dict, out_dir: Path, *, provider: str = "local",
             horde_model: str = "", hf_space: str = "", hf_api_name: str = "",
             hf_image_arg: str = "image", hf_prompt_arg: str = "prompt",
             fallback_local: bool = False) -> Path:
-    if provider not in ("local", "openai", "aihorde", "hf-spaces"):
-        raise CreativeError("Provider válido: local, aihorde, hf-spaces ou openai (pago)")
+    if provider not in ("local", "opencv", "openai", "aihorde", "hf-spaces"):
+        raise CreativeError("Provider válido: local, opencv, aihorde, hf-spaces ou openai (pago)")
     # Older imported CSVs are accepted only if their input recorded authorization.
     if pin.get("image_license_confirmed") is not True:
         raise CreativeError("Confirme direitos de uso comercial da imagem antes de estilizar.")
@@ -143,6 +172,8 @@ def stylize(pin: dict, out_dir: Path, *, provider: str = "local",
                 _openai_edit(pin, tmp, api_key=api_key)
             elif provider == "local":
                 _local_enhance(pin, tmp)
+            elif provider == "opencv":
+                _opencv_enhance(pin, tmp)
             else:
                 prompt = make_prompt(pin)
                 if provider == "aihorde":
