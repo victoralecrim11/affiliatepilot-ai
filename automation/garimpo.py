@@ -690,7 +690,7 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--browser", choices=["msedge", "chromium"], default="msedge")
         cmd.add_argument("--cdp-url", default="", help="Edge local já aberto via CDP, ex.: http://127.0.0.1:9333")
         if name == "auto":
-            cmd.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai", "none"], default="local")
+            cmd.add_argument("--provider", choices=["local", "opencv", "aihorde", "hf-spaces", "openai", "none"], default="local")
             cmd.add_argument("--allow-paid-ai", action="store_true")
         cmd.add_argument("--allow-public-processing", action="store_true",
                          help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
@@ -730,7 +730,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Declara que você possui direitos de uso comercial desta imagem")
     st = sub.add_parser("stylize", help="Gera versão local gratuita ou estiliza com IA paga opcional")
     st.add_argument("id", nargs="?")
-    st.add_argument("--provider", choices=["local", "aihorde", "hf-spaces", "openai"], default="local")
+    st.add_argument("--provider", choices=["local", "opencv", "aihorde", "hf-spaces", "openai"], default="local")
     st.add_argument("--allow-paid-ai", action="store_true")
     st.add_argument("--allow-public-processing", action="store_true",
                      help="Consente em enviar foto/prompt a terceiros (workers/Space público)")
