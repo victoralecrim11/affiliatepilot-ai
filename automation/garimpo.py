@@ -684,8 +684,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Garimpo da Vez — curadoria e publicação supervisionada de Pins")
     parser.add_argument("--store", type=Path, default=DEFAULT_STORE, help="Fila JSON privada (padrão: automation/data/pins.json)")
     sub = parser.add_subparsers(dest="command", required=True)
-    im = sub.add_parser("import-csv", help="Importa produtos reais de um CSV sem sobrescrever existentes")
+    im = sub.add_parser("import-csv", help="[Legado] Importa CSV sem sobrescrever existentes")
     im.add_argument("csv", type=Path)
+    ximp = sub.add_parser("import-xlsx", help="Importa novos produtos de uma planilha Excel")
+    ximp.add_argument("xlsx", type=Path)
+    xls = sub.add_parser("excel-sync", help="Cria/atualiza catálogo Excel da fila local")
+    xls.add_argument("--out", type=Path, default=None, help="Destino opcional .xlsx")
     for name in ("ingest-url", "auto"):
         cmd = sub.add_parser(name, help="Obtém dados permitidos do anúncio via URL; auto também prepara um Pin local")
         cmd.add_argument("url", help="URL HTTPS de produto Mercado Livre ou link curto meli.la")
@@ -820,7 +824,28 @@ def run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "import-csv":
         amount = import_csv(args.csv, args.store)
-        print(f"{amount} produto(s) importado(s). Execute 'list' e 'prepare ID'.")
+        print(f"{amount} produto(s) importado(s). Excel local atualizado automaticamente.")
+        return 0
+    if args.command == "import-xlsx":
+        try:
+            from excel_catalog import import_excel_drafts
+        except ModuleNotFoundError:
+            from automation.excel_catalog import import_excel_drafts
+        amount = import_excel_drafts(args.xlsx, args.store)
+        print(f"{amount} novo(s) produto(s) criado(s) como rascunhos não confirmados.")
+        print("Revise título, categoria, direitos de imagem e link individual antes de publicar.")
+        return 0
+    if args.command == "excel-sync":
+        try:
+            from excel_catalog import sync_catalog, ExcelCatalogError
+        except ModuleNotFoundError:
+            from automation.excel_catalog import sync_catalog, ExcelCatalogError
+        try:
+            target = sync_catalog(args.store, load_store(args.store),
+                                  dest=args.out.resolve() if args.out else None)
+        except ExcelCatalogError as exc:
+            raise GarimpoError(str(exc)) from exc
+        print(f"Catálogo Excel atualizado: {target}")
         return 0
     if args.command in {"ingest-url", "auto"}:
         affiliate_url = args.affiliate_url
