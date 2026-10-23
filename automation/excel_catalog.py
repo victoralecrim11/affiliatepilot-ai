@@ -297,26 +297,43 @@ def workbook_path(store: Path) -> Path:
     return store.parent / "produtos.xlsx"
 
 
-def sync_catalog(store: Path, data: dict, *, dest: Path | None = None) -> Path:
-    """Atomic XLSX snapshot; no network and no fake data."""
+def sync_catalog(store: Path, data: dict, *, dest: Path | None = None,
+                 force: bool = False) -> Path:
+    """Atomic XLSX snapshot; externally edited workbooks are never overwritten."""
     path = dest or workbook_path(store)
     path.parent.mkdir(parents=True, exist_ok=True)
+    marker = path.with_name(path.name + ".sha256")
+    if path.exists() and not force:
+        saved_hash = marker.read_text(encoding="ascii").strip() if marker.exists() else ""
+        actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        if not saved_hash or saved_hash != actual_hash:
+            raise ExcelCatalogError(
+                f"Excel {path} foi editado externamente ou não possui assinatura da sincronização. "
+                "Alterações manuais preservadas. Use 'import-xlsx CAMINHO' para cadastrar novos "
+                "itens; execute 'excel-sync --force' SOMENTE após revisar e aceitar sobrescrever."
+            )
     cache = Path(__file__).resolve().parent / "knowledge" / "catalog" / "mlb_categories.json"
     parts = _package(data.get("pins", {}), cache)
     with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".tmp.xlsx", delete=False) as f:
         staging = Path(f.name)
+    with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".tmp.hash", delete=False) as f:
+        marker_tmp = Path(f.name)
     try:
         with zipfile.ZipFile(staging, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
             for name, content in parts.items():
                 z.writestr(name, content)
+        digest = hashlib.sha256(staging.read_bytes()).hexdigest()
+        marker_tmp.write_text(digest + "\n", encoding="ascii")
         os.replace(staging, path)
+        os.replace(marker_tmp, marker)
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
         raise ExcelCatalogError(
             f"Não foi possível atualizar {path} (talvez aberto no Excel). "
-            "Feche a planilha e execute 'excel-sync'. O cadastro JSON está preservado."
+            "Feche o arquivo e execute 'excel-sync'. O JSON foi preservado."
         ) from exc
     finally:
         staging.unlink(missing_ok=True)
+        marker_tmp.unlink(missing_ok=True)
     return path
 
 
