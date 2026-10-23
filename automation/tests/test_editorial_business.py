@@ -121,10 +121,17 @@ class EditorialBusinessTests(unittest.TestCase):
     def test_ai_indication_is_manual_not_platform_api_field(self):
         self.prep()
         self.pin["creative_provider"] = "hf-spaces"
+        self.pin["stylized_image_path"] = str(self.root / "enhanced-ai.png")
+        self.pin["prepared_source"] = "best"
         pkg = pinterest_business.export_business(self.pin, self.root / "business")
         fields = json.loads((pkg / "fields.json").read_text(encoding="utf8"))
         self.assertTrue(fields["mark_as_ai_modified_in_business"])
         self.assertIn("Marcar como modificado por IA", (pkg / "checklist.md").read_text(encoding="utf8"))
+        self.pin["prepared_source"] = "original"
+        pkg = pinterest_business.export_business(self.pin, self.root / "business")
+        fields = json.loads((pkg / "fields.json").read_text(encoding="utf8"))
+        self.assertFalse(fields["mark_as_ai_modified_in_business"])
+        self.pin["prepared_source"] = "best"
         self.pin["creative_provider"] = "local"
         pkg = pinterest_business.export_business(self.pin, self.root / "business")
         fields = json.loads((pkg / "fields.json").read_text(encoding="utf8"))
