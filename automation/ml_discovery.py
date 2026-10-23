@@ -189,7 +189,7 @@ def pick_one(options: list[dict], heading: str, *, selection: int | None = None,
         if not (0 if allow_zero else 1) <= selection <= len(options):
             raise DiscoveryError(f"Seleção deve ser de {0 if allow_zero else 1} a {len(options)}")
         return selection
-    if not sys.stdin.isatty():
+    if not sys.stdin.isatty() and input_fn is input:
         raise DiscoveryError("Terminal não interativo: passe --pick N ou --category-id e --query.")
     while True:
         try:
