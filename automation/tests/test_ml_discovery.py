@@ -115,7 +115,7 @@ class DiscoveryTests(unittest.TestCase):
             store, command="prepare", category="tecnologia", interactive=False,
             output=out.append)
         self.assertEqual(chosen["id"], "note-002")
-        self.assertEqual(len(out), 2)
+        self.assertEqual(len(out), 3)
         with self.assertRaises(pin_selector.SelectionError):
             pin_selector.resolve_pin(store, command="prepare", interactive=False,
                                      output=lambda x: None)
