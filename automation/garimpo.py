@@ -759,7 +759,9 @@ def build_parser() -> argparse.ArgumentParser:
     prep.add_argument("--source", choices=["best", "original"], default="best",
                       help="best usa edição disponível; original usa fotografia de origem")
     exp = sub.add_parser("export-business", help="Exporta campos + foto para Pinterest Business manual, sem API")
-    exp.add_argument("id")
+    exp.add_argument("id", nargs="?", help="Opcional: ID de um único produto. Sem ID, exporta todos os Pins prontos.")
+    exp.add_argument("--latest", action="store_true",
+                     help="Sem ID, exporta apenas o Pin pronto mais recentemente preparado")
     exp.add_argument("--out", type=Path, default=DEFAULT_OUT / "business")
     app = sub.add_parser("approve", help="Aprova um Pin e uma pasta específicos")
     app.add_argument("id")
@@ -829,6 +831,7 @@ def run(argv: list[str] | None = None) -> int:
                 pin["preview_path"] = str(path)
                 pin["creative_style"] = args.style
                 pin["prepared_source"] = args.source
+                pin["prepared_at"] = now_iso()
                 pin["status"] = "prepared"
                 print(f"Pin preparado: {path}. Revisão e aprovação ainda obrigatórias.")
             state = load_store(args.store)
@@ -870,6 +873,48 @@ def run(argv: list[str] | None = None) -> int:
         for id_, pin in sorted(state["pins"].items()):
             if not args.status or pin["status"] == args.status:
                 print(f"{id_:<20} {pin['status']:<13} {pin['title']}")
+        return 0
+    if args.command == "export-business":
+        try:
+            from pinterest_business import export_business, validate_handoff, BusinessExportError
+        except ModuleNotFoundError:
+            from automation.pinterest_business import export_business, validate_handoff, BusinessExportError
+
+        if args.id and args.latest:
+            raise GarimpoError("Use um ID explícito OU --latest, não ambos.")
+        if args.id:
+            candidates = [get_pin(state, args.id)]
+        else:
+            candidates = []
+            rejected = []
+            for local_id, entry in sorted(state["pins"].items()):
+                try:
+                    validate_handoff(entry)
+                except BusinessExportError as exc:
+                    rejected.append((local_id, str(exc)))
+                else:
+                    candidates.append(entry)
+            if not candidates:
+                print(f"Nenhum Pin exportável. {len(rejected)} produto(s) pendentes.", file=sys.stderr)
+                raise GarimpoError("Primeiro prepare o produto e confirme a foto e o link individual; use 'list' e 'show ID'.")
+            if args.latest:
+                candidates = [max(candidates, key=lambda p: (
+                    p.get("prepared_at") or p.get("created_at") or "",
+                    p["id"],
+                ))]
+                print(f"Produto mais recente selecionado: {candidates[0]['id']}")
+
+        exported = []
+        for entry in candidates:
+            try:
+                folder = export_business(entry, args.out.resolve())
+            except BusinessExportError as exc:
+                raise GarimpoError(f"Pin {entry['id']}: {exc}") from exc
+            exported.append(entry["id"])
+            print(f"{entry['id']} | {entry['title']} → {folder}")
+
+        print(f"{len(exported)} pacote(s) gerado(s); nenhuma publicação realizada.")
+        print("Abra copy.txt e checklist.md em cada pasta para concluir no Pinterest Business.")
         return 0
     pin = get_pin(state, args.id)
     if args.command == "knowledge":
@@ -964,20 +1009,10 @@ def run(argv: list[str] | None = None) -> int:
         pin["preview_path"] = str(path)
         pin["creative_style"] = args.style
         pin["prepared_source"] = args.source
+        pin["prepared_at"] = now_iso()
         pin["status"] = "prepared"
         pin["approval_sha256"] = ""
         print(f"Criativo {args.style} pronto: {path}\nRevise imagem, título e link antes de aprovar.")
-    elif args.command == "export-business":
-        try:
-            from pinterest_business import export_business, BusinessExportError
-        except ModuleNotFoundError:
-            from automation.pinterest_business import export_business, BusinessExportError
-        try:
-            folder = export_business(pin, args.out.resolve())
-        except BusinessExportError as exc:
-            raise GarimpoError(str(exc)) from exc
-        print(f"Pacote Pinterest Business: {folder}")
-        print("Leia checklist.md, copie fields.json/copy.txt e publique manualmente.")
     elif args.command == "approve":
         if not args.confirm:
             raise GarimpoError("É necessário --confirm após revisar o criativo")

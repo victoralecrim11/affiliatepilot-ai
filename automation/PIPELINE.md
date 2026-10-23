@@ -1,5 +1,7 @@
 # Fluxo URL → rascunho → arte → aprovação (Garimpo da Vez)
 
+
+**Exportação sem ID:** `python automation/garimpo.py export-business` exporta todos os Pins preparados/aprovados que passam nas confirmações de foto e link individual. `--latest` exporta apenas o mais recente; informar `ID_LOCAL` continua opcional para escolher um produto específico. O comando não cria links pela API Mercado Livre e não publica nada.
 ## Novo: Pins naturais + publicação manual no Pinterest Business
 
 O modo padrão de `prepare` agora é **editorial**: foto vertical 2:3 sem cabeçalho, título nem logo sobrepostos. O estilo antigo continua opt-in com `--style branded`. Se a imagem estilizada antiga tiver banner, use `--source original` e uma foto original autorizada. O provider Pillow local agora somente ajusta cor e contraste, sem moldura publicitária.

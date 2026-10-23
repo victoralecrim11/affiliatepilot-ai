@@ -137,6 +137,77 @@ class EditorialBusinessTests(unittest.TestCase):
         fields = json.loads((pkg / "fields.json").read_text(encoding="utf8"))
         self.assertFalse(fields["mark_as_ai_modified_in_business"])
 
+    def test_export_without_id_finds_all_eligible_and_keeps_individual_links(self):
+        from unittest.mock import patch
+        self.prep()
+        older = dict(self.pin, prepared_at="2026-10-21T15:00:00+00:00")
+        other_photo = self.root / "second.jpg"
+        Image.new("RGB", (500, 700), (20, 70, 90)).save(other_photo)
+        newer = dict(self.pin, id="notebook-002", title="Notebook",
+                     category="tecnologia", preview_path=str(other_photo),
+                     affiliate_url="https://meli.la/INDIVIDUAL_02",
+                     prepared_at="2026-10-22T15:00:00+00:00")
+        blocked = dict(self.pin, id="pending-003", status="draft",
+                       affiliate_url="https://meli.la/OTHER")
+        store = self.root / "pins.json"
+        garimpo.save_store(store, {
+            "version": 1, "pins": {p["id"]: p for p in [older, newer, blocked]}
+        })
+        export_dir = self.root / "bulk-business"
+        with patch.object(garimpo, "pinterest_call") as api:
+            code = garimpo.run(["--store", str(store), "export-business",
+                                "--out", str(export_dir)])
+        self.assertEqual(code, 0)
+        api.assert_not_called()
+        first = json.loads((export_dir / older["id"] / "fields.json").read_text("utf8"))
+        second = json.loads((export_dir / newer["id"] / "fields.json").read_text("utf8"))
+        self.assertEqual(first["destination_url"], "https://meli.la/INDIVIDUAL_01")
+        self.assertEqual(second["destination_url"], "https://meli.la/INDIVIDUAL_02")
+        self.assertEqual(second["product_local_id"], "notebook-002")
+        self.assertFalse((export_dir / "pending-003").exists())
+        self.assertEqual(garimpo.load_store(store)["pins"]["pending-003"]["status"], "draft")
+
+    def test_export_latest_without_id_selects_only_latest_prepared(self):
+        self.prep()
+        older = dict(self.pin, prepared_at="2026-10-21T15:00:00+00:00")
+        other_photo = self.root / "second.jpg"
+        Image.new("RGB", (400, 600), (5, 40, 70)).save(other_photo)
+        newer = dict(self.pin, id="notebook-002", title="Notebook",
+                     affiliate_url="https://meli.la/INDIVIDUAL_02",
+                     preview_path=str(other_photo),
+                     prepared_at="2026-10-22T15:00:00+00:00")
+        store = self.root / "pins.json"
+        garimpo.save_store(store, {"version": 1, "pins": {
+            older["id"]: older, newer["id"]: newer
+        }})
+        target = self.root / "one"
+        self.assertEqual(garimpo.run(["--store", str(store), "export-business",
+                                      "--latest", "--out", str(target)]), 0)
+        self.assertFalse((target / older["id"]).exists())
+        self.assertTrue((target / newer["id"] / "fields.json").is_file())
+
+    def test_export_without_prepared_candidates_does_not_make_packages(self):
+        state = {"version": 1, "pins": {
+            self.pin["id"]: dict(self.pin, status="draft", affiliate_url_confirmed=True)
+        }}
+        store = self.root / "pins.json"
+        garimpo.save_store(store, state)
+        target = self.root / "business"
+        with self.assertRaisesRegex(garimpo.GarimpoError, "Nenhum Pin|Primeiro prepare"):
+            garimpo.run(["--store", str(store), "export-business", "--out", str(target)])
+        self.assertFalse(target.exists())
+
+    def test_export_explicit_id_still_supported_but_not_with_latest(self):
+        self.prep()
+        store = self.root / "pins.json"
+        garimpo.save_store(store, {"version": 1, "pins": {self.pin["id"]: self.pin}})
+        self.assertEqual(garimpo.run(["--store", str(store), "export-business",
+                                     self.pin["id"], "--out", str(self.root/"explicit")]), 0)
+        with self.assertRaisesRegex(garimpo.GarimpoError, "OU --latest"):
+            garimpo.run(["--store", str(store), "export-business",
+                         self.pin["id"], "--latest"])
+        self.assertFalse((self.root / "out" / "business").exists())
+
     def test_invalid_style_and_cli_interface(self):
         with self.assertRaises(garimpo.GarimpoError):
             self.prep("billboard")

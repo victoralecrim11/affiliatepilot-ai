@@ -89,6 +89,35 @@ python automation\garimpo.py review ID_LOCAL --affiliate-url "https://meli.la/LI
 **Nunca reutilize o URL copiado de outro item.** Confirme a correspondência
 entre título/MLB/categoria do anúncio exibido e o produto selecionado no painel.
 
+## Exportação sem digitar o ID do produto
+
+A fila local já relaciona **ID local**, **ID MLB**, **categoria**, **imagem** e
+**link de afiliado individual**. Portanto, não é necessário identificar o
+produto novamente no comando de exportação:
+
+```powershell
+# Exporta TODOS os Pins preparados/aprovados e prontos para publicação assistida
+python automation\garimpo.py export-business
+
+# Se preferir somente o último Pin preparado e elegível
+python automation\garimpo.py export-business --latest
+
+# Ainda é possível exportar um produto específico
+python automation\garimpo.py export-business RS1033-VHDC
+```
+
+O script verifica **cada Pin isoladamente**: foto disponível com direitos
+confirmados, `status=prepared`/`approved`, link pessoal do produto previamente
+confirmado e campos revisados quando a origem é URL. Pins em rascunho,
+publicados ou com pendências são ignorados no modo automático. Se nenhum estiver
+pronto, aparece um erro com instruções para `list`/`show`.
+
+Cada item elegível gera sua própria subpasta dentro de
+`automation/out/business/`, com o seu link de comissão preservado. **Nenhum
+link é gerado pela API do Mercado Livre, e nenhuma publicação ocorre.**
+Usar `--latest` seleciona pelo `prepared_at` (ou `created_at` em cadastros
+anteriores), nunca um link genérico.
+
 ## C. Produzir e exportar para Pinterest Business
 
 ```powershell
