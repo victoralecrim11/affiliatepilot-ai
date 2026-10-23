@@ -216,7 +216,8 @@ def _summary_xml() -> bytes:
             for cell in row.findall(_q("c")):
                 cell.set("s", "1")
     row5 = ET.SubElement(data, _q("row"), {"r": "5", "ht": "32", "customHeight": "1"})
-    data.insert(3, row5)  # Excel requires ascending <row r=...> order.
+    data.remove(row5)
+    data.insert(3, row5)  # Excel requires ascending row numbers.
     for col, formula in [
         (1, "COUNTA(Produtos!$A$5:$A$25004)"),
         (4, 'COUNTIF(Produtos!$K$5:$K$25004,"Sim")'),
