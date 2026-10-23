@@ -305,47 +305,85 @@ def text_lines(text: str, font, draw, max_width: int, max_lines: int) -> list[st
     return lines
 
 
-def prepare_image(pin: dict, out_dir: Path) -> Path:
+def prepare_image(pin: dict, out_dir: Path, *, style: str = "editorial",
+                  source: str = "best") -> Path:
+    """Prepare a truthful 2:3 image; editorial is photo-only, branded opt-in.
+
+    Never invent portions of the actual product; a softened copy of the source
+    photograph fills unused edges. Product itself is always contained uncut.
+    """
     try:
-        from PIL import Image, ImageDraw, ImageOps
+        from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
     except ImportError as exc:
         raise GarimpoError("Pillow ausente. Instale com: python -m pip install -r automation/requirements.txt") from exc
-    if pin.get("image_license_confirmed", True) is False:
-        raise GarimpoError("Confirme direitos de uso da imagem antes de preparar.")
-    inp = Path(pin.get("stylized_image_path") or pin["image_path"])
+    if style not in {"editorial", "branded"}:
+        raise GarimpoError("Estilo válido: editorial ou branded")
+    if source not in {"best", "original"}:
+        raise GarimpoError("Fonte válida: best ou original")
+    if pin.get("image_license_confirmed") is not True:
+        raise GarimpoError("Confirme direitos de uso comercial da imagem antes de preparar.")
+    source_path = pin.get("image_path") if source == "original" else (
+        pin.get("stylized_image_path") or pin.get("image_path"))
+    if not source_path:
+        raise GarimpoError("Sem imagem de origem; use review --image-file ou ingest-url.")
+    inp = Path(source_path)
     if not inp.is_file():
         raise GarimpoError("Imagem de origem não encontrada: " + str(inp))
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{pin['id']}.jpg"
-    # Designed for 2:3 Pins; photo is contained, never filled with fabricated details.
-    canvas = Image.new("RGB", (1000, 1500), "#F5EFE3")
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, 0, 1000, 205), fill="#244E46")
-    draw.text((66, 60), "GARIMPO DA VEZ", font=load_font(48), fill="#F5EFE3")
-    draw.text((67, 130), "ACHADOS ÚTEIS PARA A VIDA REAL", font=load_font(20), fill="#D69A72")
-    draw.rounded_rectangle((52, 250, 948, 1090), radius=30, fill="#FFFFFF")
     try:
-        with Image.open(inp) as photo:
-            photo = ImageOps.exif_transpose(photo)
-            photo = ImageOps.contain(photo.convert("RGB"), (840, 775), Image.Resampling.LANCZOS)
-            x = (1000 - photo.width) // 2
-            y = 280 + (780 - photo.height) // 2
-            canvas.paste(photo, (x, y))
-    except (OSError, ValueError) as exc:
+        with Image.open(inp) as img:
+            img = ImageOps.exif_transpose(img)
+            img.load()
+            if img.width * img.height > 35_000_000:
+                raise GarimpoError("Imagem de origem acima do limite de pixels")
+            photo = img.convert("RGB")
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise GarimpoError(f"Imagem inválida: {exc}") from exc
-    draw.text((65, 1143), CATEGORIES[pin["category"]], fill="#B06E45", font=load_font(25))
-    font = load_font(51)
-    lines = text_lines(pin["title"], font, draw, max_width=875, max_lines=3)
-    for i, line in enumerate(lines):
-        draw.text((64, 1199 + 65 * i), line, fill="#244E46", font=font)
-    draw.line((65, 1429, 935, 1429), fill="#C9CDBF", width=2)
-    draw.text((66, 1444), "Contém link de afiliado • Confira os detalhes no Pin", fill="#536E63", font=load_font(18, False))
-    canvas.save(target, "JPEG", quality=87, optimize=True, subsampling=0)
-    if target.stat().st_size > 18 * 1024 * 1024:
-        target.unlink(missing_ok=True)
-        raise GarimpoError("Imagem gerada excedeu 18 MiB")
-    return target
 
+    if style == "editorial":
+        # No text, watermark, stickers, fake product features or brand header.
+        # Preserve the entire reference frame in the foreground (no cutting).
+        canvas = ImageOps.fit(photo, (1000, 1500), Image.Resampling.LANCZOS)
+        canvas = canvas.filter(ImageFilter.GaussianBlur(42))
+        canvas = ImageEnhance.Brightness(canvas).enhance(0.87)
+        foreground = ImageOps.contain(photo, (1000, 1500), Image.Resampling.LANCZOS)
+        x = (1000 - foreground.width) // 2
+        y = (1500 - foreground.height) // 2
+        canvas.paste(foreground, (x, y))
+    else:
+        # Legacy visual retained only when explicitly requested.
+        canvas = Image.new("RGB", (1000, 1500), "#F5EFE3")
+        draw = ImageDraw.Draw(canvas)
+        draw.rectangle((0, 0, 1000, 205), fill="#244E46")
+        draw.text((66, 60), "GARIMPO DA VEZ", font=load_font(48), fill="#F5EFE3")
+        draw.text((67, 130), "ACHADOS ÚTEIS PARA A VIDA REAL",
+                  font=load_font(20), fill="#D69A72")
+        draw.rounded_rectangle((52, 250, 948, 1090), radius=30, fill="#FFFFFF")
+        foreground = ImageOps.contain(photo, (840, 775), Image.Resampling.LANCZOS)
+        canvas.paste(foreground, ((1000 - foreground.width)//2,
+                                 280 + (780 - foreground.height)//2))
+        draw.text((65, 1143), CATEGORIES[pin["category"]],
+                  fill="#B06E45", font=load_font(25))
+        font = load_font(51)
+        lines = text_lines(pin["title"], font, draw, max_width=875, max_lines=3)
+        for i, line in enumerate(lines):
+            draw.text((64, 1199 + 65*i), line, fill="#244E46", font=font)
+        draw.line((65, 1429, 935, 1429), fill="#C9CDBF", width=2)
+        draw.text((66, 1444), "Contém link de afiliado • Confira os detalhes no Pin",
+                  fill="#536E63", font=load_font(18, False))
+
+    # Save atomically to avoid losing the previous good preview on failure.
+    with tempfile.NamedTemporaryFile(dir=out_dir, suffix=".jpg", delete=False) as fp:
+        staging = Path(fp.name)
+    try:
+        canvas.save(staging, "JPEG", quality=90, optimize=True, subsampling=0)
+        if staging.stat().st_size > 18 * 1024 * 1024:
+            raise GarimpoError("Imagem gerada excedeu 18 MiB")
+        os.replace(staging, target)
+    finally:
+        staging.unlink(missing_ok=True)
+    return target
 
 def fingerprint(pin: dict) -> str:
     image = Path(pin["preview_path"])
