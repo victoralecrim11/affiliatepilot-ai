@@ -891,8 +891,9 @@ def run(argv: list[str] | None = None) -> int:
             print(f"{len(matches)} anúncios individuais encontrados; nenhum link de "
                   "afiliado é criado pela API.")
             for idx, item in enumerate(matches, 1):
-                price = (f" | {item['currency']} {item['price']:.2f}"
-                         if item["price"] is not None else "")
+                item_currency = item.get("currency") or item.get("currency_id") or "BRL"
+                price = (f" | {item_currency} {item['price']:.2f}"
+                         if isinstance(item.get("price"), (float, int)) else "")
                 print(f" {idx:>2}. {item['title']} [{item['id']}]"
                       f" ({item['category_id'] or 'categoria pendente'}){price}")
             if args.list_only:
