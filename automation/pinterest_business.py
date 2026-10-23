@@ -58,7 +58,9 @@ def export_business(pin: dict, out_dir: Path) -> Path:
     image_dest = dest / "pin.jpg"
     shutil.copyfile(Path(pin["preview_path"]), image_dest)
     ai_provider = pin.get("creative_provider", "")
-    ai_modified = ai_provider in AI_PROVIDERS
+    ai_modified = (ai_provider in AI_PROVIDERS
+                   and pin.get("prepared_source", "best") != "original"
+                   and bool(pin.get("stylized_image_path")))
     title = pin["title"]
     alt = str(pin.get("alt_text") or ("Fotografia do produto: " + title))[:500]
     fields = {
