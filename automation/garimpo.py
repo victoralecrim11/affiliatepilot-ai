@@ -859,6 +859,72 @@ def run(argv: list[str] | None = None) -> int:
             state["pins"][pin["id"]] = pin
             save_store(args.store, state)
         return 0
+    if args.command == "ml-discover":
+        try:
+            from ml_discovery import (DiscoveryError, browse_categories, read_token,
+                                     search_listings, pick_one)
+        except ModuleNotFoundError:
+            from automation.ml_discovery import (DiscoveryError, browse_categories,
+                                                 read_token, search_listings, pick_one)
+        try:
+            token = read_token()
+            chosen_category = None
+            if args.category_id or (not args.any_category and sys.stdin.isatty()):
+                chosen_category = browse_categories(
+                    token=token, category_id=args.category_id
+                )
+                print(f"Categoria escolhida: {chosen_category['name']} "
+                      f"({chosen_category['id']})")
+            query = args.query.strip()
+            if not query:
+                if not sys.stdin.isatty():
+                    raise DiscoveryError("Informe --query ou abra um terminal interativo.")
+                query = input("O que você quer pesquisar nesta categoria? ").strip()
+            matches = search_listings(
+                query, category_id=chosen_category["id"] if chosen_category else "",
+                limit=args.limit, token=token,
+            )
+            if not matches:
+                print("Nenhum anúncio compatível retornado pela API oficial.")
+                print("Pesquise no site, escolha um anúncio e use ingest-url com a URL.")
+                return 0
+            print(f"{len(matches)} anúncios individuais encontrados; nenhum link de "
+                  "afiliado é criado pela API.")
+            for idx, item in enumerate(matches, 1):
+                price = (f" | {item['currency']} {item['price']:.2f}"
+                         if item["price"] is not None else "")
+                print(f" {idx:>2}. {item['title']} [{item['id']}]"
+                      f" ({item['category_id'] or 'categoria pendente'}){price}")
+            if args.list_only:
+                print("Modo lista: nenhum rascunho criado.")
+                return 0
+            option = pick_one(matches, "Escolha o anúncio para importar:",
+                              selection=args.pick)
+            chosen = matches[option - 1]
+            pin = ingest_product_url(chosen["permalink"], args.store)
+            # Search data is evidence, not human confirmation or commission.
+            if not pin.get("metadata_verified") and pin["title"].startswith("Dados pendentes:"):
+                pin["title"] = chosen["title"]
+                pin["title_confirmed"] = False
+                pin["notes"].append(
+                    "Título recuperado da busca oficial; confira no anúncio antes de publicar."
+                )
+            if not pin.get("ml_category_id") and chosen["category_id"]:
+                pin["ml_category_id"] = chosen["category_id"]
+            pin["discovered_via"] = "mercadolivre_official_search"
+            pin["discovery_root_category_id"] = (
+                chosen_category["id"] if chosen_category else ""
+            )
+            state = load_store(args.store)
+            state["pins"][pin["id"]] = pin
+            save_store(args.store, state)
+            print(f"Rascunho criado para {pin['id']}: {pin['title']}")
+            print("Confira dados e obtenha link individual em Compartilhar "
+                  "na Central de Afiliados. Não foi gerado link via API.")
+            return 0
+        except DiscoveryError as exc:
+            raise GarimpoError(str(exc)) from exc
+
     if args.command == "hf-check":
         try:
             from hf_diagnostics import inspect_space, HFDiagnosticError
@@ -887,7 +953,22 @@ def run(argv: list[str] | None = None) -> int:
     if args.command == "publish":
         if not args.confirm:
             raise GarimpoError("Publicação exige --confirm")
-        publish_one_approved(args.store, args.id)
+        state = load_store(args.store)
+        if args.id:
+            selected_id = args.id
+        else:
+            try:
+                from pin_selector import resolve_pin, SelectionError
+            except ModuleNotFoundError:
+                from automation.pin_selector import resolve_pin, SelectionError
+            try:
+                selected_id = resolve_pin(
+                    state["pins"], command="publish",
+                    search=args.choose_search, category=args.choose_category
+                )["id"]
+            except SelectionError as exc:
+                raise GarimpoError(str(exc)) from exc
+        publish_one_approved(args.store, selected_id)
         return 0
     state = load_store(args.store)
     if args.command == "list":
@@ -901,14 +982,37 @@ def run(argv: list[str] | None = None) -> int:
         except ModuleNotFoundError:
             from automation.pinterest_business import export_business, validate_handoff, BusinessExportError
 
-        if args.id and args.latest:
-            raise GarimpoError("Use um ID explícito OU --latest, não ambos.")
+        if (args.id and (args.latest or args.choose)) or (args.latest and args.choose):
+            raise GarimpoError("Escolha uma opção: ID explícito, --choose ou --latest.")
         if args.id:
             candidates = [get_pin(state, args.id)]
+        elif args.choose:
+            try:
+                from pin_selector import resolve_pin, SelectionError
+            except ModuleNotFoundError:
+                from automation.pin_selector import resolve_pin, SelectionError
+            try:
+                candidates = [resolve_pin(
+                    state["pins"], command="export-business",
+                    search=args.choose_search, category=args.choose_category
+                )]
+            except SelectionError as exc:
+                raise GarimpoError(str(exc)) from exc
         else:
             candidates = []
             rejected = []
             for local_id, entry in sorted(state["pins"].items()):
+                if args.choose_search or args.choose_category:
+                    try:
+                        from pin_selector import filter_pins
+                    except ModuleNotFoundError:
+                        from automation.pin_selector import filter_pins
+                    filtered = filter_pins(
+                        {local_id: entry}, command="export-business",
+                        search=args.choose_search, category=args.choose_category
+                    )
+                    if not filtered:
+                        continue
                 try:
                     validate_handoff(entry)
                 except BusinessExportError as exc:
@@ -937,7 +1041,20 @@ def run(argv: list[str] | None = None) -> int:
         print(f"{len(exported)} pacote(s) gerado(s); nenhuma publicação realizada.")
         print("Abra copy.txt e checklist.md em cada pasta para concluir no Pinterest Business.")
         return 0
-    pin = get_pin(state, args.id)
+    if args.id:
+        pin = get_pin(state, args.id)
+    else:
+        try:
+            from pin_selector import resolve_pin, SelectionError
+        except ModuleNotFoundError:
+            from automation.pin_selector import resolve_pin, SelectionError
+        try:
+            pin = resolve_pin(state["pins"], command=args.command,
+                              search=args.choose_search, category=args.choose_category)
+        except SelectionError as exc:
+            raise GarimpoError(str(exc)) from exc
+    # All downstream paths can use the resolved ID; avoid None in messages.
+    args.id = pin["id"]
     if args.command == "knowledge":
         try:
             from prompt_templates import select_knowledge, make_prompt, knowledge_path
